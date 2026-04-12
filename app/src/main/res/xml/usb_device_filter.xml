@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- USB Printer Class Filter - matches all USB printers -->
+    <usb-device class="7" subclass="1" protocol="1" />
+    <usb-device class="7" subclass="1" protocol="2" />
+    <usb-device class="7" subclass="1" protocol="3" />
+
+    <!-- HP Printers -->
+    <usb-device vendor-id="1008" product-id="0" />
+    <usb-device vendor-id="1008" product-id="11031" />
+    <usb-device vendor-id="1008" product-id="59927" />
+    <usb-device vendor-id="1008" product-id="50455" />
+
+    <!-- Epson Printers -->
+    <usb-device vendor-id="1208" product-id="0" />
+    <usb-device vendor-id="1208" product-id="2217" />  <!-- L3150/L3118 -->
+    <usb-device vendor-id="1208" product-id="2224" />  <!-- L4160 -->
+    <usb-device vendor-id="1208" product-id="4409" />  <!-- ET-2710 -->
+    <usb-device vendor-id="1208" product-id="4418" />  <!-- L3150/L4150 -->
+
+    <!-- Canon Printers -->
+    <usb-device vendor-id="1193" product-id="0" />
+    <usb-device vendor-id="1193" product-id="6044" />
+    <usb-device vendor-id="1193" product-id="6045" />
+    <usb-device vendor-id="1193" product-id="6400" />
+
+    <!-- Brother Printers -->
+    <usb-device vendor-id="1276" product-id="0" />
+    <usb-device vendor-id="1276" product-id="812" />
+    <usb-device vendor-id="1276" product-id="813" />
+    <usb-device vendor-id="1276" product-id="1498" />
+
+    <!-- Samsung Printers -->
+    <usb-device vendor-id="1256" product-id="0" />
+    <usb-device vendor-id="1256" product-id="13071" />
+    <usb-device vendor-id="1256" product-id="13072" />
+
+    <!-- Xerox Printers -->
+    <usb-device vendor-id="2340" product-id="0" />
+    <usb-device vendor-id="2340" product-id="15895" />
+
+    <!-- Lexmark Printers -->
+    <usb-device vendor-id="1085" product-id="0" />
+    <usb-device vendor-id="1085" product-id="192" />
+</resources>

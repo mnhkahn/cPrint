@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">cPrint</string>
+
+    <!-- General -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="retry">Retry</string>
+    <string name="print">Print</string>
+    <string name="settings">Settings</string>
+    <string name="error">Error</string>
+    <string name="error_occurred">An error occurred</string>
+
+    <!-- Main Screen -->
+    <string name="printer_ready">Printer Ready</string>
+    <string name="printer_not_connected">No Printer Connected</string>
+    <string name="recent_documents">Recent Documents</string>
+    <string name="add_document">Add Document</string>
+    <string name="no_recent_documents">No Recent Documents</string>
+    <string name="tap_plus_to_add">Tap + to add a document</string>
+    <string name="pages">pages</string>
+    <string name="permissions_required">Permissions Required</string>
+    <string name="grant_permissions_message">Please grant the required permissions to use cPrint</string>
+
+    <!-- Print Preview -->
+    <string name="print_preview">Print Preview</string>
+    <string name="previous_page">Previous Page</string>
+    <string name="next_page">Next Page</string>
+    <string name="error_loading_document">Error Loading Document</string>
+
+    <!-- Print Settings -->
+    <string name="print_settings">Print Settings</string>
+    <string name="copies">Copies</string>
+    <string name="paper_size">Paper Size</string>
+    <string name="orientation">Orientation</string>
+    <string name="portrait">Portrait</string>
+    <string name="landscape">Landscape</string>
+    <string name="color_mode">Color Mode</string>
+    <string name="color">Color</string>
+    <string name="grayscale">Grayscale</string>
+    <string name="black_white">Black &amp; White</string>
+    <string name="duplex_printing">Duplex Printing</string>
+    <string name="single_sided">Single-sided</string>
+    <string name="double_sided_long">Double-sided (Long Edge)</string>
+    <string name="double_sided_short">Double-sided (Short Edge)</string>
+    <string name="print_quality">Print Quality</string>
+    <string name="draft">Draft</string>
+    <string name="normal">Normal</string>
+    <string name="high">High</string>
+    <string name="best">Best</string>
+    <string name="pages_per_sheet">Pages per Sheet</string>
+    <string name="page_range">Page Range</string>
+    <string name="page_range_hint">e.g., 1-5, 8, 10-12</string>
+    <string name="page_range_example">Example: 1-5, 8, 10-12</string>
+    <string name="no_printer_connected">No Printer Connected</string>
+    <string name="connect_printer_to_configure">Connect a printer to configure settings</string>
+
+    <!-- Print Queue -->
+    <string name="print_queue">Print Queue</string>
+    <string name="active_jobs">Active Jobs</string>
+    <string name="history">History</string>
+    <string name="no_active_jobs">No Active Jobs</string>
+    <string name="no_active_jobs_message">Your print queue is empty</string>
+    <string name="no_history">No History</string>
+    <string name="no_history_message">No completed print jobs yet</string>
+    <string name="pending">Pending</string>
+    <string name="preparing">Preparing</string>
+    <string name="printing">Printing</string>
+    <string name="paused">Paused</string>
+    <string name="completed">Completed</string>
+    <string name="failed">Failed</string>
+    <string name="cancelled">Cancelled</string>
+
+    <!-- Print Service -->
+    <string name="print_service_channel_name">Print Service</string>
+    <string name="print_service_channel_description">Notifications for print jobs</string>
+    <string name="printing_document">Printing: %1$s</string>
+    <string name="print_in_progress">Print in progress</string>
+    <string name="print_completed">Print completed</string>
+    <string name="print_failed">Print failed</string>
+
+    <!-- Error Dialogs -->
+    <string name="usb_permission_title">USB Permission Required</string>
+    <string name="usb_permission_message">Please grant USB permission to connect to the printer.</string>
+    <string name="printer_not_found_title">Printer Not Found</string>
+    <string name="printer_not_found_message">No USB printer detected. Please check the connection.</string>
+    <string name="connection_failed_title">Connection Failed</string>
+    <string name="connection_failed_message">Failed to connect to printer. Please try again.</string>
+    <string name="transfer_error_title">Print Error</string>
+    <string name="transfer_error_message">Failed to send data to printer. Please check the connection.</string>
+    <string name="unknown_error_title">Unknown Error</string>
+    <string name="unknown_error_message">An unexpected error occurred. Please try again.</string>
+    <string name="out_of_paper_title">Out of Paper</string>
+    <string name="out_of_paper_message">The printer is out of paper. Please add paper and try again.</string>
+    <string name="paper_jam_title">Paper Jam</string>
+    <string name="paper_jam_message">Paper jam detected. Please clear the jam and try again.</string>
+    <string name="low_ink_title">Low Ink</string>
+    <string name="low_ink_message">Ink is running low. Consider replacing the cartridge soon.</string>
+    <string name="door_open_title">Printer Door Open</string>
+    <string name="door_open_message">Please close the printer door to continue.</string>
+    <string name="printer_offline_title">Printer Offline</string>
+    <string name="printer_offline_message">The printer appears to be offline. Please check the connection.</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+
+    <!-- Scan Document -->
+    <string name="scan_document">Scan Document</string>
+    <string name="scan_document_title">Scan or Import</string>
+    <string name="scan_document_description">Take a photo or choose from gallery to print</string>
+    <string name="take_photo">Take Photo</string>
+    <string name="choose_from_gallery">Choose from Gallery</string>
+</resources>
