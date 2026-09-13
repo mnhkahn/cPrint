@@ -74,6 +74,7 @@
     <string name="cancelled">Cancelled</string>
 
     <!-- Print Service -->
+    <string name="cprint_print_service_name">cPrint USB Printing</string>
     <string name="print_service_channel_name">Print Service</string>
     <string name="print_service_channel_description">Notifications for print jobs</string>
     <string name="printing_document">Printing: %1$s</string>

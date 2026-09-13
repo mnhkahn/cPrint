@@ -17,6 +17,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import com.cprint.app.domain.model.PrintJob
 import com.cprint.app.domain.model.PrintSettings
+import com.cprint.app.domain.model.KnownPrinters
 import com.cprint.app.domain.repository.PrinterDeviceStatus
 import com.cprint.app.domain.repository.UsbPrintRepository
 import com.cprint.app.domain.repository.UsbPrinterInfo
@@ -862,12 +863,16 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 android.util.Log.d("UsbPrintRepo", "Device: ${device.deviceName}, isPrinter=$isPrinter, hasPermission=$hasPermission")
             }
 
-            // Find a printer class device with permission
+            // Match the same devices accepted by USB discovery. Some vendor
+            // devices do not expose USB_CLASS_PRINTER but are supported by a
+            // known driver route, so restricting this to the class alone makes
+            // system-print jobs fail after the process is recreated.
             val printerDevice = devices.firstOrNull { device ->
                 val isPrinter = (0 until device.interfaceCount).any { i ->
                     device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_PRINTER
                 }
-                isPrinter && usbManager.hasPermission(device)
+                (isPrinter || KnownPrinters.findPrinter(device.vendorId, device.productId) != null) &&
+                    usbManager.hasPermission(device)
             }
 
             printerDevice?.let { device ->

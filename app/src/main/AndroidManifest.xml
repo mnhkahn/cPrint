@@ -138,6 +138,25 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!--
+            System print integration. This is deliberately separate from
+            PrintJobService: Android binds this service after the user selects a
+            cPrint printer in the platform print dialog.
+        -->
+        <service
+            android:name=".service.CPrintPrintService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="@string/cprint_print_service_name"
+            android:permission="android.permission.BIND_PRINT_SERVICE">
+            <intent-filter>
+                <action android:name="android.printservice.PrintService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.printservice"
+                android:resource="@xml/cprint_print_service" />
+        </service>
+
         <!-- USB Connection Service -->
         <service
             android:name=".service.UsbConnectionService"
