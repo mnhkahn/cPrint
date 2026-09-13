@@ -1,5 +1,6 @@
 package com.cprint.app.presentation.main
 
+import android.content.Context
 import android.hardware.usb.UsbDevice
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -10,7 +11,9 @@ import com.cprint.app.domain.repository.PrinterRepository
 import com.cprint.app.domain.usecase.document.GetRecentDocumentsUseCase
 import com.cprint.app.domain.usecase.document.OpenDocumentUseCase
 import com.cprint.app.domain.usecase.printer.GetConnectedPrinterUseCase
+import com.cprint.app.driver.PrintDriverEngine
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +34,8 @@ class MainViewModel @Inject constructor(
     private val getConnectedPrinterUseCase: GetConnectedPrinterUseCase,
     private val getRecentDocumentsUseCase: GetRecentDocumentsUseCase,
     private val openDocumentUseCase: OpenDocumentUseCase,
-    private val printerRepository: PrinterRepository
+    private val printerRepository: PrinterRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<MainUiState>(MainUiState.Loading)
@@ -39,8 +43,30 @@ class MainViewModel @Inject constructor(
 
     private val _permissionsGranted = MutableStateFlow(false)
 
+    private val _driverTestStatus = MutableStateFlow<String?>(null)
+    val driverTestStatus: StateFlow<String?> = _driverTestStatus.asStateFlow()
+
     init {
         observeData()
+    }
+
+    fun runDriverPipelineTest() {
+        if (_driverTestStatus.value != null) return // already running / showing result
+        viewModelScope.launch {
+            _driverTestStatus.value = "驱动管线测试运行中（首次需下载驱动包）…"
+            val result = PrintDriverEngine.runEscprPipelineTest(appContext)
+            _driverTestStatus.value = buildString {
+                append(if (result.success) "✅ " else "❌ ").append(result.message).append('\n')
+                append("输出: ${result.outBytes} 字节 → ${result.outFile?.absolutePath ?: "-"}\n")
+                if (result.headHex.isNotEmpty()) append("头16字节: ${result.headHex}\n")
+                append("exit=${result.exitCode}")
+                if (result.stderrLog.isNotEmpty()) append("\nstderr: ${result.stderrLog.take(500)}")
+            }
+        }
+    }
+
+    fun clearDriverTestStatus() {
+        _driverTestStatus.value = null
     }
 
     private fun observeData() {

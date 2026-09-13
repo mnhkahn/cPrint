@@ -63,7 +63,19 @@ class MainActivity : ComponentActivity() {
     private val openDocumentLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let { handleSelectedDocument(it) }
+        uri?.let {
+            // Take persistable permission to access the file later
+            try {
+                contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                Timber.d("Got persistable permission for: $it")
+            } catch (e: Exception) {
+                Timber.w("Could not take persistable permission: ${e.message}")
+            }
+            handleSelectedDocument(it)
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -143,6 +155,12 @@ class MainActivity : ComponentActivity() {
         observeViewModel()
         handleIntent(intent)
 
+        // Headless trigger for automation: adb shell am start ... --ez drvtest true
+        if (intent.getBooleanExtra("drvtest", false)) {
+            Timber.d("MainActivity: drvtest extra set, running driver pipeline test")
+            viewModel.runDriverPipelineTest()
+        }
+
         setContent {
             CPrintTheme {
                 Surface(
@@ -172,6 +190,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.refreshData()
+        // Check if printer needs reconnection (e.g., after app restart)
+        checkAndAutoConnectUsbPrinter()
     }
 
     private fun checkAndRequestPermissions() {
@@ -202,6 +222,8 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
             viewModel.onPermissionsGranted()
+            // Permissions already granted, check for USB printers
+            checkAndAutoConnectUsbPrinter()
         }
     }
 
@@ -275,9 +297,17 @@ class MainActivity : ComponentActivity() {
         }
 
         printerDevice?.let { device ->
-            Timber.d("MainActivity: Found USB printer at startup: ${device.deviceName} (VID:${device.vendorId}, PID:${device.productId})")
+            Timber.d("MainActivity: Found USB printer: ${device.deviceName} (VID:${device.vendorId}, PID:${device.productId})")
 
+            // Check if already connected (has permission and connection is active)
             if (usbManager.hasPermission(device)) {
+                // Check if already connected by looking at the view model state
+                val currentState = viewModel.uiState.value
+                if (currentState is MainUiState.Success && currentState.isPrinterConnected) {
+                    Timber.d("MainActivity: Printer already connected, skipping auto-connect")
+                    return
+                }
+
                 Timber.d("MainActivity: Already has permission for printer, triggering connection")
                 Toast.makeText(this, "检测到已连接的打印机，正在自动连接...", Toast.LENGTH_SHORT).show()
                 viewModel.connectPrinter(device)
@@ -296,7 +326,7 @@ class MainActivity : ComponentActivity() {
                 usbManager.requestPermission(device, permissionIntent)
             }
         } ?: run {
-            Timber.d("MainActivity: No USB printer found at startup")
+            Timber.d("MainActivity: No USB printer found")
         }
     }
 }

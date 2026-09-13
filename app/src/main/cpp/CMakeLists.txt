@@ -14,6 +14,8 @@ add_library(
     cprint-native
     SHARED
     native-lib.cpp
+    escpr_writer.c
+    escp2_writer.c
 )
 
 # Link libraries

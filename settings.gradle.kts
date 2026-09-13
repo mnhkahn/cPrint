@@ -16,7 +16,10 @@ dependencyResolutionManagement {
         maven { url = uri("https://repo.huaweicloud.com/repository/maven") }
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        exclusiveContent {
+            forRepository { maven { url = uri("https://jitpack.io") } }
+            filter { includeGroup("com.github.mik3y") }
+        }
     }
 }
 

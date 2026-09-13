@@ -65,6 +65,7 @@ fun MainScreen(
     onDocumentSelected: (RecentDocument) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val driverTestStatus by viewModel.driverTestStatus.collectAsState()
 
     Scaffold(
         topBar = {
@@ -126,7 +127,10 @@ fun MainScreen(
                         printer = state.printer,
                         isPrinterConnected = state.isPrinterConnected,
                         recentDocuments = state.recentDocuments,
-                        onDocumentSelected = onDocumentSelected
+                        onDocumentSelected = onDocumentSelected,
+                        driverTestStatus = driverTestStatus,
+                        onRunDriverTest = { viewModel.runDriverPipelineTest() },
+                        onDismissDriverTest = { viewModel.clearDriverTestStatus() }
                     )
                 }
             }
@@ -139,13 +143,24 @@ private fun MainContent(
     printer: com.cprint.app.domain.model.Printer?,
     isPrinterConnected: Boolean,
     recentDocuments: List<RecentDocument>,
-    onDocumentSelected: (RecentDocument) -> Unit
+    onDocumentSelected: (RecentDocument) -> Unit,
+    driverTestStatus: String?,
+    onRunDriverTest: () -> Unit,
+    onDismissDriverTest: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            DriverTestCard(
+                status = driverTestStatus,
+                onRun = onRunDriverTest,
+                onDismiss = onDismissDriverTest
+            )
+        }
+
         item {
             PrinterStatusCard(
                 printer = printer,
@@ -170,6 +185,39 @@ private fun MainContent(
                 DocumentItem(
                     document = document,
                     onClick = { onDocumentSelected(document) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DriverTestCard(
+    status: String?,
+    onRun: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "驱动管线测试（escpr 原型）",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = onRun, enabled = status == null) {
+                    Text(if (status == null) "运行测试" else "运行中/已完成")
+                }
+                if (status != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = onDismiss) { Text("清除") }
+                }
+            }
+            if (status != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }

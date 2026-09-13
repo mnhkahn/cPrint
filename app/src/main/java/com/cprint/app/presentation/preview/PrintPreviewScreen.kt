@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -85,6 +86,9 @@ fun PrintPreviewScreen(
     val currentPage by viewModel.currentPage.collectAsState()
     val totalPages by viewModel.totalPages.collectAsState()
     val printSettings by viewModel.printSettings.collectAsState()
+    val isPrinting by viewModel.isPrinting.collectAsState()
+    val printProgress by viewModel.printProgress.collectAsState()
+    val printStatusMessage by viewModel.printStatusMessage.collectAsState()
 
     Scaffold(
         topBar = {
@@ -139,6 +143,15 @@ fun PrintPreviewScreen(
                         onSettingsChange = { viewModel.updatePrintSettings(it) }
                     )
                 }
+            }
+
+            // Printing Progress Dialog
+            if (isPrinting) {
+                PrintingProgressDialog(
+                    progress = printProgress,
+                    statusMessage = printStatusMessage,
+                    onCancel = { viewModel.cancelPrint() }
+                )
             }
         }
     }
@@ -509,5 +522,73 @@ private fun ErrorView(message: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+    }
+}
+
+@Composable
+private fun PrintingProgressDialog(
+    progress: Int,
+    statusMessage: String,
+    onCancel: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .padding(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "正在打印",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Progress indicator
+                CircularProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.size(64.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "$progress%",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("取消打印")
+                }
+            }
+        }
     }
 }

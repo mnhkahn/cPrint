@@ -8,8 +8,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.usecase.document.OpenDocumentUseCase
+import com.cprint.app.domain.usecase.print.CancelPrintJobUseCase
+import com.cprint.app.domain.usecase.print.CreatePrintJobUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,7 +26,9 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class PrintPreviewViewModel @Inject constructor(
-    private val openDocumentUseCase: OpenDocumentUseCase
+    private val openDocumentUseCase: OpenDocumentUseCase,
+    private val createPrintJobUseCase: CreatePrintJobUseCase,
+    private val cancelPrintJobUseCase: CancelPrintJobUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PrintPreviewUiState>(PrintPreviewUiState.Loading)
@@ -37,6 +42,18 @@ class PrintPreviewViewModel @Inject constructor(
 
     private val _printSettings = MutableStateFlow(PrintSettings())
     val printSettings: StateFlow<PrintSettings> = _printSettings.asStateFlow()
+
+    // Print progress state
+    private val _isPrinting = MutableStateFlow(false)
+    val isPrinting: StateFlow<Boolean> = _isPrinting.asStateFlow()
+
+    private val _printProgress = MutableStateFlow(0)
+    val printProgress: StateFlow<Int> = _printProgress.asStateFlow()
+
+    private val _printStatusMessage = MutableStateFlow("")
+    val printStatusMessage: StateFlow<String> = _printStatusMessage.asStateFlow()
+
+    private var currentPrintJob: kotlinx.coroutines.Job? = null
 
     private var pdfRenderer: PdfRenderer? = null
     private var parcelFileDescriptor: ParcelFileDescriptor? = null
@@ -112,6 +129,85 @@ class PrintPreviewViewModel @Inject constructor(
 
     fun updatePrintSettings(settings: PrintSettings) {
         _printSettings.value = settings
+    }
+
+    fun print(documentName: String, documentUri: String, documentType: String, pageCount: Int) {
+        // Cancel any existing print job
+        currentPrintJob?.cancel()
+
+        currentPrintJob = viewModelScope.launch {
+            try {
+                Timber.d("Starting print job for $documentName")
+                _isPrinting.value = true
+                _printProgress.value = 0
+                _printStatusMessage.value = "准备打印..."
+
+                // Simulate progress updates (in a real app, this would come from the repository)
+                val progressJob = launch {
+                    var progress = 0
+                    while (progress < 100 && _isPrinting.value) {
+                        delay(500)
+                        progress += 2
+                        _printProgress.value = progress.coerceAtMost(99)
+                        _printStatusMessage.value = when {
+                            progress < 20 -> "正在准备文档..."
+                            progress < 50 -> "正在渲染页面..."
+                            progress < 80 -> "正在发送数据到打印机..."
+                            else -> "正在打印..."
+                        }
+                    }
+                }
+
+                val result = createPrintJobUseCase(
+                    documentName = documentName,
+                    documentUri = documentUri,
+                    documentType = documentType,
+                    totalPages = pageCount,
+                    settings = _printSettings.value
+                )
+
+                progressJob.cancel()
+
+                if (result.isSuccess) {
+                    Timber.d("Print job completed successfully")
+                    _printProgress.value = 100
+                    _printStatusMessage.value = "打印完成"
+                    // Keep dialog visible for 2 seconds so user can see completion
+                    delay(2000)
+                } else {
+                    val error = result.exceptionOrNull()
+                    Timber.e(error, "Print job failed")
+                    _printProgress.value = 0
+                    _printStatusMessage.value = "打印失败: ${error?.message ?: "未知错误"}"
+                    // Keep dialog visible for 3 seconds to show error
+                    delay(3000)
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    Timber.d("Print job cancelled")
+                    _printStatusMessage.value = "打印已取消"
+                } else {
+                    Timber.e(e, "Error executing print job")
+                    _printProgress.value = 0
+                    _printStatusMessage.value = "打印错误: ${e.message ?: "未知错误"}"
+                }
+                // Keep dialog visible for 3 seconds to show error
+                delay(3000)
+            } finally {
+                _isPrinting.value = false
+                currentPrintJob = null
+            }
+        }
+    }
+
+    fun cancelPrint() {
+        viewModelScope.launch {
+            Timber.d("Cancelling print job")
+            currentPrintJob?.cancel()
+            _isPrinting.value = false
+            _printProgress.value = 0
+            _printStatusMessage.value = "打印已取消"
+        }
     }
 
     private fun loadPdfRenderer(uri: Uri) {
