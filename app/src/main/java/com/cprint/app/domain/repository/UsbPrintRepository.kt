@@ -81,5 +81,8 @@ data class UsbPrinterInfo(
     val manufacturer: String,
     val productName: String,
     val serialNumber: String?,
-    val protocol: String
+    val protocol: String,
+    val deviceId: String? = null,
+    val detectedModel: String? = null,
+    val driverFamily: String? = null
 )

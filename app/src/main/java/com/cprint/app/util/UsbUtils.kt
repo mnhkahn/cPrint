@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.hardware.usb.UsbDeviceConnection
 import timber.log.Timber
 
 /**
@@ -87,6 +88,32 @@ object UsbUtils {
     fun getDeviceIdentifier(device: UsbDevice): String {
         return "${device.vendorId}:${device.productId}"
     }
+
+    /** Reads the USB Printer Class GET_DEVICE_ID response (IEEE-1284). */
+    fun readIeee1284DeviceId(device: UsbDevice, connection: UsbDeviceConnection): String? {
+        val printerInterface = getPrinterInterface(device) ?: return null
+        val buffer = ByteArray(1024)
+        val count = connection.controlTransfer(
+            UsbConstants.USB_DIR_IN or UsbConstants.USB_TYPE_CLASS or USB_RECIP_INTERFACE,
+            0x00, // GET_DEVICE_ID
+            0,
+            printerInterface.id,
+            buffer,
+            buffer.size,
+            5_000
+        )
+        if (count <= 2) return null
+        // The first two bytes are a big-endian total length, including themselves.
+        val declaredLength = ((buffer[0].toInt() and 0xff) shl 8) or (buffer[1].toInt() and 0xff)
+        val payloadLength = (declaredLength - 2).coerceIn(0, count - 2)
+        if (payloadLength == 0) return null
+        return buffer.copyOfRange(2, 2 + payloadLength)
+            .toString(Charsets.US_ASCII)
+            .trimEnd('\u0000', '\r', '\n')
+            .takeIf { it.isNotBlank() }
+    }
+
+    private const val USB_RECIP_INTERFACE = 0x01
 
     /**
      * Log USB device information for debugging

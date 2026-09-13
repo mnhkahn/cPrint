@@ -60,7 +60,8 @@ object PrintDriverEngine {
         context: Context,
         documentUri: String,
         pageIndexes: List<Int>,
-        settings: PrintSettings
+        settings: PrintSettings,
+        printerModel: String = PRINTER_MODEL
     ): DriverOutput = withContext(Dispatchers.IO) {
         require(pageIndexes.isNotEmpty()) { "没有可打印的页面" }
 
@@ -75,7 +76,7 @@ object PrintDriverEngine {
         val so = DriverPackager.ensureInstalled(context, DriverPackager.DRV_ESCPR)
         val argv = arrayOf(
             so.absolutePath,
-            PRINTER_MODEL,
+            printerModel,
             pageWidth.toString(),
             pageHeight.toString(),
             dpi.toString(),

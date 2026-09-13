@@ -21,6 +21,8 @@ import com.cprint.app.domain.repository.PrinterDeviceStatus
 import com.cprint.app.domain.repository.UsbPrintRepository
 import com.cprint.app.domain.repository.UsbPrinterInfo
 import com.cprint.app.driver.PrintDriverEngine
+import com.cprint.app.driver.PrinterDriverRouter
+import com.cprint.app.util.UsbUtils
 import com.cprint.app.util.NativeUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +55,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
     private var currentConnection: UsbDeviceConnection? = null
     private var bulkOutEndpoint: UsbEndpoint? = null
     private var bulkInEndpoint: UsbEndpoint? = null
+    private var ieee1284DeviceId: String? = null
+    private var driverRoute: PrinterDriverRouter.Route? = null
 
     private val _printProgress = MutableStateFlow(0)
     override fun getPrintProgress(): Flow<Int> = _printProgress.asStateFlow()
@@ -340,7 +344,10 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 manufacturer = device.manufacturerName ?: "Unknown",
                 productName = device.productName ?: "Unknown",
                 serialNumber = device.serialNumber,
-                protocol = detectProtocol(device)
+                protocol = detectProtocol(device),
+                deviceId = ieee1284DeviceId,
+                detectedModel = driverRoute?.modelId,
+                driverFamily = driverRoute?.family?.name
             )
         )
     }
@@ -358,6 +365,13 @@ class UsbPrintRepositoryImpl @Inject constructor(
             if (usbInterface.interfaceClass == UsbConstants.USB_CLASS_PRINTER) {
                 if (connection.claimInterface(usbInterface, true)) {
                     findEndpoints(usbInterface)
+                    ieee1284DeviceId = UsbUtils.readIeee1284DeviceId(device, connection)
+                    val identity = PrinterDriverRouter.parseDeviceId(ieee1284DeviceId)
+                    driverRoute = PrinterDriverRouter.route(device.vendorId, identity)
+                    Timber.i(
+                        "Printer identified: mfg=${identity.manufacturer}, model=${identity.model}, " +
+                            "route=${driverRoute?.family}, reason=${driverRoute?.reason}"
+                    )
                     return true
                 }
             }
@@ -383,6 +397,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
         currentConnection = null
         bulkOutEndpoint = null
         bulkInEndpoint = null
+        ieee1284DeviceId = null
+        driverRoute = null
     }
 
     /**
@@ -468,11 +484,19 @@ class UsbPrintRepositoryImpl @Inject constructor(
             val pagesToPrint = pageRange ?: (0 until job.totalPages)
             Timber.d("Pages to print: $pagesToPrint")
 
+            val route = driverRoute ?: throw IllegalStateException("尚未识别打印机驱动，请重新连接打印机")
+            if (route.family != PrinterDriverRouter.Family.ESCPR) {
+                throw IllegalStateException(
+                    "检测到 ${route.family} 驱动（${route.modelId ?: "未知机型"}），" +
+                        "该驱动的 PPD/argv 适配尚未完成，已阻止发送以避免空白页"
+                )
+            }
             val driverOutput = PrintDriverEngine.renderPdfForUsb(
                 context = context,
                 documentUri = job.documentUri,
                 pageIndexes = pagesToPrint.toList(),
-                settings = settings
+                settings = settings,
+                printerModel = route.modelId ?: "L3118"
             )
             val result = driverOutput.bytes
             Timber.d("escpr driver prepared ${result.size} bytes for ${pagesToPrint.count()} pages; exit=${driverOutput.exitCode}")
