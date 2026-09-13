@@ -214,7 +214,11 @@ class CPrintPrintService : PrintService() {
                 val model = KnownPrinters.findPrinter(device.vendorId, device.productId)
                 val name = model?.let { "${it.manufacturer} ${it.model}" }
                     ?: (device.productName ?: "USB printer")
-                PrinterInfo.Builder(printerId, name, printerStatus(device, usbManager))
+                // A physically attached printer must remain selectable. Reporting it
+                // as STATUS_UNAVAILABLE when USB permission has not yet been
+                // granted makes Android render it in the list but disable taps,
+                // leaving the user with no path to start a print job.
+                PrinterInfo.Builder(printerId, name, PrinterInfo.STATUS_IDLE)
                     .setDescription(if (usbManager.hasPermission(device)) "Connected via USB" else "Open cPrint once to grant USB access")
                     .setCapabilities(buildCapabilities(printerId))
                     .build()
@@ -225,9 +229,6 @@ class CPrintPrintService : PrintService() {
         (0 until device.interfaceCount).any { index ->
             device.getInterface(index).interfaceClass == UsbConstants.USB_CLASS_PRINTER
         } || KnownPrinters.findPrinter(device.vendorId, device.productId) != null
-
-    private fun printerStatus(device: UsbDevice, usbManager: UsbManager): Int =
-        if (usbManager.hasPermission(device)) PrinterInfo.STATUS_IDLE else PrinterInfo.STATUS_UNAVAILABLE
 
     private fun buildCapabilities(printerId: PrinterId): PrinterCapabilitiesInfo =
         PrinterCapabilitiesInfo.Builder(printerId)
