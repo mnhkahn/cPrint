@@ -6,6 +6,8 @@ plugins {
     id("androidx.navigation.safeargs.kotlin")
 }
 
+val releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+
 android {
     namespace = "com.cprint.app"
     compileSdk = 34
@@ -23,10 +25,21 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseKeystoreFile != null) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
             isShrinkResources = false
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
