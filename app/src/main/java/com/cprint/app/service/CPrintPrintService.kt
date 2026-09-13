@@ -29,6 +29,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentHashMap.newKeySet
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +58,9 @@ class CPrintPrintService : PrintService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val printerIdByLocalId = ConcurrentHashMap<String, PrinterId>()
     private val activeJobs = ConcurrentHashMap<String, Job>()
+    // Print framework callbacks are not guaranteed to be delivered only once.
+    // Keep this separate from activeJobs so the check-and-add is atomic.
+    private val enqueuedSystemJobIds = newKeySet<String>()
     private val printMutex = Mutex()
 
     override fun onCreatePrinterDiscoverySession(): PrinterDiscoverySession =
@@ -64,6 +68,10 @@ class CPrintPrintService : PrintService() {
 
     override fun onPrintJobQueued(printJob: PrintJob) {
         val key = printJob.id.toString()
+        if (!enqueuedSystemJobIds.add(key)) {
+            Timber.w("Ignoring duplicate callback for system print job $key")
+            return
+        }
         activeJobs[key] = serviceScope.launch {
             printMutex.withLock {
                 processPrintJob(printJob)
@@ -79,6 +87,7 @@ class CPrintPrintService : PrintService() {
     override fun onDestroy() {
         activeJobs.values.forEach { it.cancel() }
         activeJobs.clear()
+        enqueuedSystemJobIds.clear()
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -130,6 +139,7 @@ class CPrintPrintService : PrintService() {
             }
         } finally {
             activeJobs.remove(key)
+            enqueuedSystemJobIds.remove(key)
             cachedPdf?.delete()
         }
     }
