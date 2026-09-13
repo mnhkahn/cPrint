@@ -118,61 +118,62 @@ class UsbPrintRepositoryImpl @Inject constructor(
                     )
                 }
 
-                val chunkSize = 64 // USB max packet size for L3118
-                val totalChunks = (printData.size + chunkSize - 1) / chunkSize
-                Timber.d("Sending print data in $totalChunks chunks (${printData.size} bytes total)")
+                // bulkTransfer 由内核按端点 maxPacketSize 自动拆包，
+                // 应用层用大 buffer 才能跑满 Full-Speed 带宽（64 字节分包只有 ~50KB/s）
+                val chunkSize = 16384
+                val totalCopies = job.copies.coerceAtLeast(1)
+                val totalChunks = ((printData.size + chunkSize - 1) / chunkSize) * totalCopies
+                Timber.d("Sending print data in $totalChunks chunks (${printData.size} bytes x $totalCopies copies)")
 
                 // Check if cancelled before starting
                 if (isCancelled) {
                     return@withContext Result.failure(Exception("打印已取消"))
                 }
 
-                printData.inputStream().use { stream ->
-                    val buffer = ByteArray(chunkSize)
-                    var bytesRead: Int
-                    var chunkIndex = 0
-                    var totalBytesSent = 0
-                    val startTime = System.currentTimeMillis()
-                    val maxPrintTime = 120 * 1000L // 120 seconds timeout
+                var chunkIndex = 0
+                var totalBytesSent = 0
+                val startTime = System.currentTimeMillis()
+                // 按 20KB/s 的保守吞吐估算超时，下限 2 分钟
+                val maxPrintTime = maxOf(120_000L, printData.size.toLong() * totalCopies / 20)
 
-                    while (stream.read(buffer).also { bytesRead = it } != -1) {
-                        // Check timeout
-                        if (System.currentTimeMillis() - startTime > maxPrintTime) {
-                            Timber.e("Print timeout after 120 seconds")
-                            return@withContext Result.failure(Exception("打印超时，请检查打印机"))
-                        }
-                        if (isCancelled) {
-                            return@withContext Result.failure(Exception("Print cancelled"))
-                        }
+                for (copy in 0 until totalCopies) {
+                    printData.inputStream().use { stream ->
+                        val buffer = ByteArray(chunkSize)
+                        var bytesRead: Int
 
-                        val chunk = if (bytesRead < chunkSize) buffer.copyOf(bytesRead) else buffer
-                        val result = sendRawData(chunk)
+                        while (stream.read(buffer).also { bytesRead = it } != -1) {
+                            // Check timeout
+                            if (System.currentTimeMillis() - startTime > maxPrintTime) {
+                                Timber.e("Print timeout after ${maxPrintTime / 1000} seconds")
+                                return@withContext Result.failure(Exception("打印超时，请检查打印机"))
+                            }
+                            if (isCancelled) {
+                                return@withContext Result.failure(Exception("Print cancelled"))
+                            }
 
-                        if (result.isFailure) {
-                            Timber.e("Failed to send chunk $chunkIndex: ${result.exceptionOrNull()?.message}")
-                            return@withContext Result.failure(
-                                result.exceptionOrNull() ?: Exception("Failed to send data")
-                            )
-                        }
+                            val chunk = if (bytesRead < chunkSize) buffer.copyOf(bytesRead) else buffer
+                            val result = sendRawData(chunk)
 
-                        // Small delay to prevent printer buffer overflow
-                        if (chunkIndex % 4 == 0) {
-                            kotlinx.coroutines.delay(5L)
-                        }
+                            if (result.isFailure) {
+                                Timber.e("Failed to send chunk $chunkIndex: ${result.exceptionOrNull()?.message}")
+                                return@withContext Result.failure(
+                                    result.exceptionOrNull() ?: Exception("Failed to send data")
+                                )
+                            }
 
-                        chunkIndex++
-                        totalBytesSent += bytesRead
-                        val progress = (chunkIndex * 100) / totalChunks
-                        _printProgress.value = progress
+                            chunkIndex++
+                            totalBytesSent += bytesRead
+                            val progress = (chunkIndex * 100) / totalChunks
+                            _printProgress.value = progress
 
-                        // Log progress every 10% or every 100 chunks
-                        if (progress % 10 == 0 || chunkIndex % 100 == 0) {
-                            Timber.d("Print progress: $progress% ($chunkIndex/$totalChunks chunks, $totalBytesSent/${printData.size} bytes)")
+                            if (progress % 10 == 0 || chunkIndex % 100 == 0) {
+                                Timber.d("Print progress: $progress% (copy ${copy + 1}/$totalCopies, chunk $chunkIndex/$totalChunks)")
+                            }
                         }
                     }
-
-                    Timber.d("Print data sent complete: $totalBytesSent bytes in $chunkIndex chunks")
                 }
+
+                Timber.d("Print data sent complete: $totalBytesSent bytes in $chunkIndex chunks, $totalCopies copies")
 
                 _printProgress.value = 100
                 Timber.d("Print job sent successfully")
