@@ -90,6 +90,16 @@ node_modules/
 .vscode/
 *.code-workspace
 
+# ===== Reverse-engineering workspace =====
+# Keep only deliberately curated notes/snippets. JADX output, extracted APK/Dex
+# files, downloaded driver archives, and the JADX distribution are reproducible
+# research artifacts and must not enter the application repository.
+/nokoprint_analysis/jadx/
+/nokoprint_analysis/raw/
+/nokoprint_analysis/src/
+/nokoprint_analysis/server_packs/
+/nokoprint_analysis/single_*.java
+
 # ===== OS generated files =====
 Thumbs.db
 ehthumbs.db
