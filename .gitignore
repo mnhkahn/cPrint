@@ -50,6 +50,9 @@ out/
 *.tar.gz
 *.rar
 
+# The Gradle wrapper is required for CI; this exception must come after *.jar.
+!gradle/wrapper/gradle-wrapper.jar
+
 # ===== Build outputs =====
 *.apk
 *.aar
