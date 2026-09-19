@@ -19,6 +19,11 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
+        // GitHub Releases used by the in-app updater. Keep this pointing at the
+        // canonical public repository so update packages never come from an
+        // arbitrary URL supplied by the UI.
+        buildConfigField("String", "GITHUB_REPOSITORY", "\"mnhkahn/cPrint\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true

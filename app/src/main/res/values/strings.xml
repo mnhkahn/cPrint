@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">cPrint</string>
+    <string name="app_name">打印小帮手</string>
 
     <!-- General -->
     <string name="back">Back</string>
@@ -22,7 +22,7 @@
     <string name="tap_plus_to_add">Tap + to add a document</string>
     <string name="pages">pages</string>
     <string name="permissions_required">Permissions Required</string>
-    <string name="grant_permissions_message">Please grant the required permissions to use cPrint</string>
+    <string name="grant_permissions_message">Please grant the required permissions to use 打印小帮手</string>
 
     <!-- Print Preview -->
     <string name="print_preview">Print Preview</string>
@@ -74,7 +74,7 @@
     <string name="cancelled">Cancelled</string>
 
     <!-- Print Service -->
-    <string name="cprint_print_service_name">cPrint USB Printing</string>
+    <string name="cprint_print_service_name">打印小帮手 USB 打印服务</string>
     <string name="print_service_channel_name">Print Service</string>
     <string name="print_service_channel_description">Notifications for print jobs</string>
     <string name="printing_document">Printing: %1$s</string>

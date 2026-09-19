@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.Button
@@ -62,6 +63,7 @@ fun MainScreen(
     onSelectDocument: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenQueue: () -> Unit,
+    onCheckForUpdate: () -> Unit,
     onDocumentSelected: (RecentDocument) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -76,6 +78,13 @@ fun MainScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    IconButton(onClick = onCheckForUpdate) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = "检查更新",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,

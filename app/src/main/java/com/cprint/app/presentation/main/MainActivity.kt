@@ -1,6 +1,7 @@
 package com.cprint.app.presentation.main
 
 import android.Manifest
+import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -34,6 +35,7 @@ import com.cprint.app.presentation.queue.PrintQueueActivity
 import com.cprint.app.presentation.settings.PrintSettingsActivity
 import com.cprint.app.presentation.theme.CPrintTheme
 import com.cprint.app.service.UsbDeviceReceiver
+import com.cprint.app.update.GitHubUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -46,6 +48,8 @@ import timber.log.Timber
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private val updateManager by lazy { GitHubUpdateManager(this) }
+    private var updateDialogVisible = false
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -172,11 +176,62 @@ class MainActivity : ComponentActivity() {
                         onSelectDocument = { openDocumentLauncher.launch(arrayOf("*/*")) },
                         onOpenSettings = { openPrintSettings() },
                         onOpenQueue = { openPrintQueue() },
+                        onCheckForUpdate = { checkForUpdate(userInitiated = true) },
                         onDocumentSelected = { document ->
                             openPrintPreview(document.uri)
                         }
                     )
                 }
+            }
+        }
+
+        // This only checks for a newer GitHub Release. Downloading and
+        // installing always require the user's explicit confirmation.
+        checkForUpdate(userInitiated = false)
+    }
+
+    private fun checkForUpdate(userInitiated: Boolean) {
+        lifecycleScope.launch {
+            updateManager.checkForUpdate().onSuccess { release ->
+                if (release == null) {
+                    if (userInitiated) {
+                        Toast.makeText(this@MainActivity, "已经是最新版本", Toast.LENGTH_SHORT).show()
+                    }
+                } else if (!updateDialogVisible) {
+                    showUpdateDialog(release)
+                }
+            }.onFailure { error ->
+                Timber.w(error, "Failed to check for GitHub update")
+                if (userInitiated) {
+                    Toast.makeText(this@MainActivity, "检查更新失败，请稍后再试", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun showUpdateDialog(release: GitHubUpdateManager.Release) {
+        updateDialogVisible = true
+        AlertDialog.Builder(this)
+            .setTitle("发现新版本 ${release.version}")
+            .setMessage(release.notes.ifBlank { "新版本已发布，是否下载并安装？" })
+            .setNegativeButton("以后再说") { _, _ -> updateDialogVisible = false }
+            .setPositiveButton("立即更新") { _, _ -> downloadAndInstallUpdate(release) }
+            .setOnDismissListener { updateDialogVisible = false }
+            .show()
+    }
+
+    private fun downloadAndInstallUpdate(release: GitHubUpdateManager.Release) {
+        lifecycleScope.launch {
+            if (!updateManager.canInstallPackages()) {
+                updateManager.openInstallPermissionSettings()
+                Toast.makeText(this@MainActivity, "请允许“安装未知应用”，然后再次点击更新", Toast.LENGTH_LONG).show()
+                return@launch
+            }
+
+            Toast.makeText(this@MainActivity, "正在下载更新…", Toast.LENGTH_SHORT).show()
+            updateManager.downloadAndInstall(release).onFailure { error ->
+                Timber.e(error, "Failed to download GitHub update")
+                Toast.makeText(this@MainActivity, "更新下载失败，请稍后再试", Toast.LENGTH_LONG).show()
             }
         }
     }
