@@ -82,7 +82,7 @@ jobs:
       - name: Upload APK to PGYER
         run: |
           ENDPOINT="$(jq -r '.data.endpoint' pgyer-token.json)"
-          curl --fail-with-body --silent --show-error -X POST "$ENDPOINT" -F "key=$(jq -r '.data.params.key' pgyer-token.json)" -F "signature=$(jq -r '.data.params.signature' pgyer-token.json)" -F "x-cos-security-token=$(jq -r '.data.params[\"x-cos-security-token\"]' pgyer-token.json)" -F "x-cos-meta-file-name=app-release.apk" -F "file=@app/build/outputs/apk/release/app-release.apk"
+          curl --fail-with-body --silent --show-error -X POST "$ENDPOINT" -F "key=$(jq -r '.data.params.key' pgyer-token.json)" -F "signature=$(jq -r '.data.params.signature' pgyer-token.json)" -F "x-cos-security-token=$(jq -r '.data.params["x-cos-security-token"]' pgyer-token.json)" -F "x-cos-meta-file-name=app-release.apk" -F "file=@app/build/outputs/apk/release/app-release.apk"
       - name: Wait for PGYER publication
         id: pgyer
         env:
