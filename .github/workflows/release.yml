@@ -26,7 +26,11 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
+      # The action's historical default also requests the retired `tools` SDK
+      # package, which makes current GitHub-hosted runners fail before build.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Resolve release version
         id: version
         env:
