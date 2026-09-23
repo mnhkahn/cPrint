@@ -30,7 +30,7 @@ android {
         versionName = releaseVersion ?: "1.0.5"
 
         // Public download page only. The API key remains exclusively in CI.
-        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/zuoyexiaohuoban\"")
+        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/cprint\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -42,9 +42,9 @@ android {
         if (releaseKeystoreFile != null) {
             create("release") {
                 storeFile = file(releaseKeystoreFile)
-                storePassword = System.getenv("HOMEWORK_RELEASE_STORE_PASSWORD")
+                storePassword = System.getenv("CPRINT_RELEASE_STORE_PASSWORD")
                 keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword = System.getenv("HOMEWORK_RELEASE_STORE_PASSWORD")
+                keyPassword = System.getenv("CPRINT_RELEASE_STORE_PASSWORD")
             }
         }
     }

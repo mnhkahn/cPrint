@@ -49,17 +49,17 @@ jobs:
       - name: Restore release signing key
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-          HOMEWORK_RELEASE_STORE_PASSWORD: ${{ secrets.HOMEWORK_RELEASE_STORE_PASSWORD }}
+          CPRINT_RELEASE_STORE_PASSWORD: ${{ secrets.CPRINT_RELEASE_STORE_PASSWORD }}
         run: |
           test -n "$RELEASE_KEYSTORE_BASE64"
-          test -n "$HOMEWORK_RELEASE_STORE_PASSWORD"
+          test -n "$CPRINT_RELEASE_STORE_PASSWORD"
           printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
-          RELEASE_KEY_ALIAS="$(keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$HOMEWORK_RELEASE_STORE_PASSWORD" 2>/dev/null | sed -n 's/^\([^,]*\),.*/\1/p' | head -n 1)"
+          RELEASE_KEY_ALIAS="$(keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$CPRINT_RELEASE_STORE_PASSWORD" 2>/dev/null | sed -n 's/^\([^,]*\),.*/\1/p' | head -n 1)"
           test -n "$RELEASE_KEY_ALIAS"
           {
             echo "RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore"
             echo "RELEASE_KEY_ALIAS=$RELEASE_KEY_ALIAS"
-            echo "HOMEWORK_RELEASE_STORE_PASSWORD=$HOMEWORK_RELEASE_STORE_PASSWORD"
+            echo "CPRINT_RELEASE_STORE_PASSWORD=$CPRINT_RELEASE_STORE_PASSWORD"
           } >> "$GITHUB_ENV"
       - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon -PreleaseVersion="${{ steps.version.outputs.value }}"
@@ -76,7 +76,7 @@ jobs:
           PGYER_API_KEY: ${{ secrets.PGYER_API_KEY }}
         run: |
           test -n "$PGYER_API_KEY"
-          curl --fail-with-body --silent --show-error --data-urlencode "_api_key=$PGYER_API_KEY" --data-urlencode "buildType=apk" --data-urlencode "buildInstallType=1" --data-urlencode "buildInstallDate=2" --data-urlencode "buildChannelShortcut=zuoyexiaohuoban" --data-urlencode "buildUpdateDescription@release-notes.md" https://www.pgyer.com/apiv2/app/getCOSToken > pgyer-token.json
+          curl --fail-with-body --silent --show-error --data-urlencode "_api_key=$PGYER_API_KEY" --data-urlencode "buildType=apk" --data-urlencode "buildInstallType=1" --data-urlencode "buildInstallDate=2" --data-urlencode "buildUpdateDescription@release-notes.md" https://www.pgyer.com/apiv2/app/getCOSToken > pgyer-token.json
           jq -e '.code == 0' pgyer-token.json
           echo "build_key=$(jq -r '.data.key' pgyer-token.json)" >> "$GITHUB_OUTPUT"
       - name: Upload APK to PGYER
