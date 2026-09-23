@@ -68,7 +68,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.value }}
         run: |
           go install github.com/git-chglog/git-chglog/cmd/git-chglog@v0.15.4
-          "$(go env GOPATH)/bin/git-chglog" "$VERSION" --output release-notes.md
+          "$(go env GOPATH)/bin/git-chglog" --output release-notes.md "v$VERSION"
           test -s release-notes.md || echo "Release $VERSION" > release-notes.md
       - name: Request PGYER upload credentials
         id: pgyer-token
@@ -121,3 +121,16 @@ jobs:
         run: |
           { cat release-notes.md; echo; echo "下载：$PGYER_URL"; } > github-release-notes.md
           gh release create "$VERSION" app/build/outputs/apk/release/app-release.apk --repo "$GITHUB_REPOSITORY" --title "$VERSION" --notes-file github-release-notes.md
+      - name: Notify Lark about a failed release
+        if: failure()
+        env:
+          LARK_RELEASE_WEBHOOK: ${{ secrets.LARK_RELEASE_WEBHOOK }}
+          VERSION: ${{ steps.version.outputs.value }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          test -n "$LARK_RELEASE_WEBHOOK"
+          jq -n --arg text "cPrint $VERSION 发布失败\n查看日志：$RUN_URL" \
+            '{msg_type: "text", content: {text: $text}}' \
+            | curl --fail-with-body --silent --show-error \
+                -H "Content-Type: application/json" \
+                --data-binary @- "$LARK_RELEASE_WEBHOOK"
