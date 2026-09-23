@@ -14,7 +14,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,7 +34,7 @@ import com.cprint.app.presentation.queue.PrintQueueActivity
 import com.cprint.app.presentation.settings.PrintSettingsActivity
 import com.cprint.app.presentation.theme.CPrintTheme
 import com.cprint.app.service.UsbDeviceReceiver
-import com.cprint.app.update.GitHubUpdateManager
+import com.cprint.app.update.PgyerUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -48,7 +47,7 @@ import timber.log.Timber
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
-    private val updateManager by lazy { GitHubUpdateManager(this) }
+    private val updateManager by lazy { PgyerUpdateManager(this) }
     private var updateDialogVisible = false
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -185,8 +184,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // This only checks for a newer GitHub Release. Downloading and
-        // installing always require the user's explicit confirmation.
+        // This only reads the public PGYER download page. Installation happens
+        // there after the user explicitly chooses to continue.
         checkForUpdate(userInitiated = false)
     }
 
@@ -201,7 +200,7 @@ class MainActivity : ComponentActivity() {
                     showUpdateDialog(release)
                 }
             }.onFailure { error ->
-                Timber.w(error, "Failed to check for GitHub update")
+                Timber.w(error, "Failed to check for PGYER update")
                 if (userInitiated) {
                     Toast.makeText(this@MainActivity, "检查更新失败，请稍后再试", Toast.LENGTH_SHORT).show()
                 }
@@ -209,31 +208,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun showUpdateDialog(release: GitHubUpdateManager.Release) {
+    private fun showUpdateDialog(release: PgyerUpdateManager.Release) {
         updateDialogVisible = true
         AlertDialog.Builder(this)
             .setTitle("发现新版本 ${release.version}")
-            .setMessage(release.notes.ifBlank { "新版本已发布，是否下载并安装？" })
+            .setMessage(release.notes.ifBlank { "新版本已发布，是否前往蒲公英更新？" })
             .setNegativeButton("以后再说") { _, _ -> updateDialogVisible = false }
-            .setPositiveButton("立即更新") { _, _ -> downloadAndInstallUpdate(release) }
+            .setPositiveButton("前往蒲公英更新") { _, _ -> updateManager.openDownloadPage() }
             .setOnDismissListener { updateDialogVisible = false }
             .show()
-    }
-
-    private fun downloadAndInstallUpdate(release: GitHubUpdateManager.Release) {
-        lifecycleScope.launch {
-            if (!updateManager.canInstallPackages()) {
-                updateManager.openInstallPermissionSettings()
-                Toast.makeText(this@MainActivity, "请允许“安装未知应用”，然后再次点击更新", Toast.LENGTH_LONG).show()
-                return@launch
-            }
-
-            Toast.makeText(this@MainActivity, "正在下载更新…", Toast.LENGTH_SHORT).show()
-            updateManager.downloadAndInstall(release).onFailure { error ->
-                Timber.e(error, "Failed to download GitHub update")
-                Toast.makeText(this@MainActivity, "更新下载失败，请稍后再试", Toast.LENGTH_LONG).show()
-            }
-        }
     }
 
     override fun onDestroy() {

@@ -1,0 +1,163 @@
+{"kind":"deck","id":"pr/t6hrb8","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/y90nupkv","slide":1,"title":"小小宇宙探索家","textShapes":4}
+{"kind":"shape","id":"sh/547294r6","slide":1,"bbox":[0,0,610,720]}
+{"kind":"textbox","id":"sh/k3yl0zql","slide":1,"text":"小小宇宙探索家","textPreview":"小小宇宙探索家","textChars":7,"textLines":1,"bbox":[78,140,360,34]}
+{"kind":"textbox","id":"sh/7qp4be9c","slide":1,"text":"黑洞\n到底是什么？","textPreview":"黑洞 | 到底是什么？","textChars":9,"textLines":2,"bbox":[76,192,500,170]}
+{"kind":"textbox","id":"sh/65g3298r","slide":1,"text":"西颐小学  ·  科学演讲  ·  约 5 分钟","textPreview":"西颐小学  ·  科学演讲  ·  约 5 分钟","textChars":24,"textLines":1,"bbox":[78,410,450,40]}
+{"kind":"textbox","id":"sh/ts7md4r2","slide":1,"text":"分享人：____________","textPreview":"分享人：____________","textChars":16,"textLines":1,"bbox":[78,590,340,32]}
+{"kind":"image","id":"im/dkb2xcfy","slide":1,"name":"","bbox":[0,0,1280,720]}
+{"kind":"notes","id":"nt/y90nupkv","slide":1,"text":"大家好！今天我想带大家认识宇宙里最神秘的天体之一：黑洞。它看起来像一个黑色的洞，可它其实不是普通的洞。接下来五分钟，我们一起看看黑洞是什么、它从哪里来，还有科学家怎样找到它。\n\n图片：AI 生成科普插图。科学参考：NASA Science, Black Holes。"}
+{"kind":"slide","id":"sl/hwbqtkby","slide":2,"title":"01 / 09","textShapes":6}
+{"kind":"textbox","id":"sh/nu58f2hs","slide":2,"text":"01 / 09","textPreview":"01 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/9072xkry","slide":2,"text":"黑洞：一个引力特别强的地方","textPreview":"黑洞：一个引力特别强的地方","textChars":13,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/ozy1ofad","slide":2,"bbox":[74,150,112,5]}
+{"kind":"shape","id":"sh/b29kza94","slide":2,"bbox":[770,192,300,300]}
+{"kind":"shape","id":"sh/a10jqpsj","slide":2,"bbox":[810,232,220,220]}
+{"kind":"shape","id":"sh/x4r21kru","slide":2,"bbox":[680,220,480,240]}
+{"kind":"shape","id":"sh/w3i1sfa9","slide":2,"bbox":[700,240,440,200]}
+{"kind":"textbox","id":"sh/r65knqtk","slide":2,"text":"强到连光都很难逃走","textPreview":"强到连光都很难逃走","textChars":9,"textLines":1,"bbox":[728,505,390,44]}
+{"kind":"textbox","id":"sh/q5wjelsz","slide":2,"text":"黑洞不是“吸尘器”，而是质量挤在很小空间里，形成极强引力的天体。","textPreview":"黑洞不是“吸尘器”，而是质量挤在很小空间里，形成极强引力的天体。","textChars":32,"textLines":1,"bbox":[84,220,540,130]}
+{"kind":"shape","id":"sh/ove9o7yd","slide":2,"bbox":[84,402,500,116]}
+{"kind":"textbox","id":"sh/9wnqhczy","slide":2,"text":"“引力”就是把物体拉向彼此的力量。地球的引力让我们不会飘到太空中。","textPreview":"“引力”就是把物体拉向彼此的力量。地球的引力让我们不会飘到太空中。","textChars":33,"textLines":1,"bbox":[110,422,450,76]}
+{"kind":"textbox","id":"sh/mtwrmxg7","slide":2,"text":"关键词：引力","textPreview":"关键词：引力","textChars":6,"textLines":1,"bbox":[84,564,240,32]}
+{"kind":"notes","id":"nt/hwbqtkby","slide":2,"text":"黑洞的特点是引力特别强。大家可以想象，把很重的东西压到很小很小的地方，周围的拉力就会变得很强。强到一定程度，连光也难以离开，所以我们看不见黑洞本身。\n\n科学参考：NASA Science, What Is a Black Hole? https://science.nasa.gov/universe/black-holes/"}
+{"kind":"slide","id":"sl/ofy9wn61","slide":3,"title":"02 / 09","textShapes":9}
+{"kind":"textbox","id":"sh/sfix03y9","slide":3,"text":"02 / 09","textPreview":"02 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/cza94vmx","slide":3,"text":"有些黑洞来自大恒星的“谢幕”","textPreview":"有些黑洞来自大恒星的“谢幕”","textChars":14,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/d0jax03i","slide":3,"bbox":[74,150,112,5]}
+{"kind":"shape","id":"sh/298ryl4v","slide":3,"bbox":[180,240,150,150]}
+{"kind":"textbox","id":"sh/3ah8rqlg","slide":3,"text":"大恒星","textPreview":"大恒星","textChars":3,"textLines":1,"bbox":[110,420,290,42]}
+{"kind":"textbox","id":"sh/obq90bml","slide":3,"text":"燃料慢慢用完","textPreview":"燃料慢慢用完","textChars":6,"textLines":1,"bbox":[110,465,290,34]}
+{"kind":"shape","id":"sh/pcjqtg36","slide":3,"bbox":[400,300,100,38]}
+{"kind":"shape","id":"sh/m5cra54z","slide":3,"bbox":[530,240,150,150]}
+{"kind":"shape","id":"sh/n6ls3alk","slide":3,"bbox":[485,205,45,45]}
+{"kind":"shape","id":"sh/n2l4fq98","slide":3,"bbox":[550,205,45,45]}
+{"kind":"shape","id":"sh/m1c3mlsn","slide":3,"bbox":[615,205,45,45]}
+{"kind":"shape","id":"sh/943mhgre","slide":3,"bbox":[680,205,45,45]}
+{"kind":"shape","id":"sh/83ulovat","slide":3,"bbox":[485,375,45,45]}
+{"kind":"shape","id":"sh/v6l4jq94","slide":3,"bbox":[550,375,45,45]}
+{"kind":"shape","id":"sh/a5c3ql8z","slide":3,"bbox":[615,375,45,45]}
+{"kind":"shape","id":"sh/x8nml0ra","slide":3,"bbox":[680,375,45,45]}
+{"kind":"textbox","id":"sh/w7ulsvqp","slide":3,"text":"超新星爆发","textPreview":"超新星爆发","textChars":5,"textLines":1,"bbox":[460,420,290,42]}
+{"kind":"textbox","id":"sh/ja54na9g","slide":3,"text":"发生巨大的爆炸","textPreview":"发生巨大的爆炸","textChars":7,"textLines":1,"bbox":[460,465,290,34]}
+{"kind":"shape","id":"sh/i9w3u58v","slide":3,"bbox":[750,300,100,38]}
+{"kind":"shape","id":"sh/e10f2twf","slide":3,"bbox":[880,240,150,150]}
+{"kind":"shape","id":"sh/f29gbyx0","slide":3,"bbox":[920,280,70,70]}
+{"kind":"textbox","id":"sh/03ix43e5","slide":3,"text":"黑洞","textPreview":"黑洞","textChars":2,"textLines":1,"bbox":[810,420,290,42]}
+{"kind":"textbox","id":"sh/14ryd8fq","slide":3,"text":"核心继续塌缩","textPreview":"核心继续塌缩","textChars":6,"textLines":1,"bbox":[810,465,290,34]}
+{"kind":"shape","id":"sh/6d0fytg3","slide":3,"bbox":[160,575,950,70]}
+{"kind":"textbox","id":"sh/re9g7yxo","slide":3,"text":"不是每一颗恒星都会变成黑洞，通常需要“很大很重”的恒星。","textPreview":"不是每一颗恒星都会变成黑洞，通常需要“很大很重”的恒星。","textChars":28,"textLines":1,"bbox":[205,590,870,36]}
+{"kind":"notes","id":"nt/ofy9wn61","slide":3,"text":"有些非常大的恒星到了生命后期，会发生一次很猛烈的爆炸，叫超新星爆发。爆炸以后，如果恒星中心留下的核心还很重，它会继续向内塌缩，最后可能形成黑洞。普通的小恒星不会变成黑洞。\n\n科学参考：NASA Space Place, What Is a Black Hole? https://spaceplace.nasa.gov/black-holes/en/"}
+{"kind":"slide","id":"sl/jyx0ra1s","slide":4,"title":"03 / 09","textShapes":7}
+{"kind":"textbox","id":"sh/jadsz2xk","slide":4,"text":"03 / 09","textPreview":"03 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/1cj2d8b6","slide":4,"text":"黑洞周围有什么？","textPreview":"黑洞周围有什么？","textChars":8,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/0ba143al","slide":4,"bbox":[74,150,112,5]}
+{"kind":"textbox","id":"sh/rm1k7yt4","slide":4,"text":"事件视界","textPreview":"事件视界","textChars":4,"textLines":1,"bbox":[756,160,160,35]}
+{"kind":"textbox","id":"sh/ql8jytsj","slide":4,"text":"越过这条边界，连光也无法回来","textPreview":"越过这条边界，连光也无法回来","textChars":14,"textLines":1,"bbox":[756,195,380,34]}
+{"kind":"shape","id":"sh/doj29oba","slide":4,"bbox":[660,265,250,250]}
+{"kind":"shape","id":"sh/sna103ap","slide":4,"bbox":[500,285,580,210]}
+{"kind":"shape","id":"sh/3ihk3et8","slide":4,"bbox":[535,315,510,150]}
+{"kind":"textbox","id":"sh/ih8ju9sn","slide":4,"text":"吸积盘","textPreview":"吸积盘","textChars":3,"textLines":1,"bbox":[195,277,150,35]}
+{"kind":"textbox","id":"sh/kbm987y5","slide":4,"text":"气体和尘埃绕着黑洞转动，互相摩擦，会变得很热、很亮。","textPreview":"气体和尘埃绕着黑洞转动，互相摩擦，会变得很热、很亮。","textChars":26,"textLines":1,"bbox":[195,322,310,84]}
+{"kind":"shape","id":"sh/5cva1cfq","slide":4,"bbox":[150,520,970,86]}
+{"kind":"textbox","id":"sh/i94r6xgz","slide":4,"text":"事件视界像一条“返回线”。进入后，任何东西都不能回到外面。","textPreview":"事件视界像一条“返回线”。进入后，任何东西都不能回到外面。","textChars":29,"textLines":1,"bbox":[190,540,890,42]}
+{"kind":"notes","id":"nt/jyx0ra1s","slide":4,"text":"黑洞并不总是完全黑漆漆的。黑洞附近的气体和尘埃会绕着它高速旋转，形成明亮的吸积盘。黑洞周围还有一条看不见的边界，叫事件视界。东西一旦越过它，就没有办法回来了。\n\n科学参考：NASA Science, Black Holes；ESA, Black holes。"}
+{"kind":"slide","id":"sl/i107q5of","slide":5,"title":"04 / 09","textShapes":7}
+{"kind":"textbox","id":"sh/v2twb6dw","slide":5,"text":"04 / 09","textPreview":"04 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/dgbulwnm","slide":5,"text":"黑洞会把宇宙里的一切都吸走吗？","textPreview":"黑洞会把宇宙里的一切都吸走吗？","textChars":15,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/cf2tcr61","slide":5,"bbox":[74,150,112,5]}
+{"kind":"textbox","id":"sh/z2tcnm5s","slide":5,"text":"不会。","textPreview":"不会。","textChars":3,"textLines":1,"bbox":[90,190,290,70]}
+{"kind":"textbox","id":"sh/yhkbe1o7","slide":5,"text":"离得很远时，黑洞的引力和同样质量的其他天体一样。","textPreview":"离得很远时，黑洞的引力和同样质量的其他天体一样。","textChars":24,"textLines":1,"bbox":[90,275,530,82]}
+{"kind":"shape","id":"sh/l4bupwny","slide":5,"bbox":[90,415,540,115]}
+{"kind":"textbox","id":"sh/032tgr6d","slide":5,"text":"只有靠得非常近，黑洞的引力才会变得特别危险","textPreview":"只有靠得非常近，黑洞的引力才会变得特别危险","textChars":21,"textLines":1,"bbox":[122,442,480,58]}
+{"kind":"shape","id":"sh/n6dcr65o","slide":5,"bbox":[865,244,220,220]}
+{"kind":"shape","id":"sh/m5kbi1oj","slide":5,"bbox":[700,220,530,260]}
+{"kind":"shape","id":"sh/w32dkbuh","slide":5,"bbox":[1075,330,42,42]}
+{"kind":"textbox","id":"sh/x4vedgvm","slide":5,"text":"远处的小行星","textPreview":"远处的小行星","textChars":6,"textLines":1,"bbox":[998,400,180,32]}
+{"kind":"textbox","id":"sh/ahkvi1cb","slide":5,"text":"它可以继续绕着黑洞运行","textPreview":"它可以继续绕着黑洞运行","textChars":11,"textLines":1,"bbox":[760,542,410,38]}
+{"kind":"notes","id":"nt/i107q5of","slide":5,"text":"有人会问：黑洞会不会把整个宇宙都吸进去？答案是不会。黑洞的引力不会伸出一只手把很远的东西抓来。离得远时，物体可以像绕着太阳那样，绕着黑洞运行。只有靠得非常近，才会被强大的引力影响。\n\n科学参考：NASA Space Place, What Is a Black Hole?"}
+{"kind":"slide","id":"sl/x8f69ofe","slide":6,"title":"05 / 09","textShapes":7}
+{"kind":"textbox","id":"sh/5svutgni","slide":6,"text":"05 / 09","textPreview":"05 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/yhg7epsj","slide":6,"text":"引力演示：小行星靠近黑洞","textPreview":"引力演示：小行星靠近黑洞","textChars":12,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/zi98nu94","slide":6,"bbox":[74,150,112,5]}
+{"kind":"textbox","id":"sh/87ipkzal","slide":6,"text":"第 1 步：离得远","textPreview":"第 1 步：离得远","textChars":9,"textLines":1,"bbox":[90,185,400,46]}
+{"kind":"textbox","id":"sh/98rqt4r6","slide":6,"text":"小行星可以稳定地绕着黑洞运行","textPreview":"小行星可以稳定地绕着黑洞运行","textChars":14,"textLines":1,"bbox":[90,238,450,70]}
+{"kind":"shape","id":"sh/ml07i9sv","slide":6,"bbox":[650,240,300,300]}
+{"kind":"shape","id":"sh/7m98ru9g","slide":6,"bbox":[630,220,340,340]}
+{"kind":"textbox","id":"sh/oryp8fah","slide":6,"text":"事件视界","textPreview":"事件视界","textChars":4,"textLines":1,"bbox":[704,575,200,28]}
+{"kind":"shape","id":"sh/pc76hkr2","slide":6,"bbox":[550,300,630,230]}
+{"kind":"shape","id":"sh/h4bupgn6","slide":6,"bbox":[1050,365,54,54]}
+{"kind":"textbox","id":"sh/w32twb6l","slide":6,"text":"小行星","textPreview":"小行星","textChars":3,"textLines":1,"bbox":[1015,432,125,28]}
+{"kind":"shape","id":"sh/v2tcn650","slide":6,"bbox":[110,610,1060,48]}
+{"kind":"textbox","id":"sh/u1kbu1ov","slide":6,"text":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textPreview":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textChars":26,"textLines":1,"bbox":[150,616,980,30]}
+{"kind":"notes","id":"nt/x8f69ofe","slide":6,"text":"这一组连续三页是动态演示。请边点击边讲：第 1 步：离得远。小行星可以稳定地绕着黑洞运行。要提醒同学们，这只是帮助理解的示意图，真实的黑洞和轨道比图上复杂得多。\n\n科学参考：NASA Space Place, What Is a Black Hole?"}
+{"kind":"slide","id":"sl/gnmp4jqx","slide":7,"title":"06 / 09","textShapes":7}
+{"kind":"textbox","id":"sh/25ojml43","slide":7,"text":"06 / 09","textPreview":"06 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/cb2tkvap","slide":7,"text":"引力演示：小行星靠近黑洞","textPreview":"引力演示：小行星靠近黑洞","textChars":12,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/dcbud0ra","slide":7,"bbox":[74,150,112,5]}
+{"kind":"textbox","id":"sh/ydkbm5sv","slide":7,"text":"第 2 步：越来越近","textPreview":"第 2 步：越来越近","textChars":10,"textLines":1,"bbox":[90,185,400,46]}
+{"kind":"textbox","id":"sh/zedcfa9g","slide":7,"text":"引力变强，小行星的轨道开始改变","textPreview":"引力变强，小行星的轨道开始改变","textChars":15,"textLines":1,"bbox":[90,238,450,70]}
+{"kind":"shape","id":"sh/kzmdova1","slide":7,"bbox":[650,240,300,300]}
+{"kind":"shape","id":"sh/l0vuh0rm","slide":7,"bbox":[630,220,340,340]}
+{"kind":"textbox","id":"sh/eh0ba1sr","slide":7,"text":"事件视界","textPreview":"事件视界","textChars":4,"textLines":1,"bbox":[704,575,200,28]}
+{"kind":"shape","id":"sh/fi9c369c","slide":7,"bbox":[550,300,630,230]}
+{"kind":"shape","id":"sh/baxkjqlk","slide":7,"bbox":[875,365,54,54]}
+{"kind":"textbox","id":"sh/a9ojq5kz","slide":7,"text":"小行星","textPreview":"小行星","textChars":3,"textLines":1,"bbox":[840,432,125,28]}
+{"kind":"shape","id":"sh/xcz2l03q","slide":7,"bbox":[797,375,66,30]}
+{"kind":"shape","id":"sh/cbq1sv25","slide":7,"bbox":[110,610,1060,48]}
+{"kind":"textbox","id":"sh/n6x0fqlo","slide":7,"text":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textPreview":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textChars":26,"textLines":1,"bbox":[150,616,980,30]}
+{"kind":"notes","id":"nt/gnmp4jqx","slide":7,"text":"这一组连续三页是动态演示。请边点击边讲：第 2 步：越来越近。引力变强，小行星的轨道开始改变。要提醒同学们，这只是帮助理解的示意图，真实的黑洞和轨道比图上复杂得多。\n\n科学参考：NASA Space Place, What Is a Black Hole?"}
+{"kind":"slide","id":"sl/fu1gfa1s","slide":8,"title":"07 / 09","textShapes":7}
+{"kind":"textbox","id":"sh/1k7edwv2","slide":8,"text":"07 / 09","textPreview":"07 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/18byd4zy","slide":8,"text":"引力演示：小行星靠近黑洞","textPreview":"引力演示：小行星靠近黑洞","textChars":12,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/g72x4zyd","slide":8,"bbox":[74,150,112,5]}
+{"kind":"textbox","id":"sh/ri9g7uhw","slide":8,"text":"第 3 步：太靠近了","textPreview":"第 3 步：太靠近了","textChars":10,"textLines":1,"bbox":[90,185,400,46]}
+{"kind":"textbox","id":"sh/6h0fypgb","slide":8,"text":"越过事件视界后，小行星无法返回","textPreview":"越过事件视界后，小行星无法返回","textChars":15,"textLines":1,"bbox":[90,238,450,70]}
+{"kind":"shape","id":"sh/tkby9kzm","slide":8,"bbox":[650,240,300,300]}
+{"kind":"shape","id":"sh/sjix0zy1","slide":8,"bbox":[630,220,340,340]}
+{"kind":"textbox","id":"sh/je9g3ahk","slide":8,"text":"事件视界","textPreview":"事件视界","textChars":4,"textLines":1,"bbox":[704,575,200,28]}
+{"kind":"shape","id":"sh/id0fu50z","slide":8,"bbox":[550,300,630,230]}
+{"kind":"shape","id":"sh/o7ydoret","slide":8,"bbox":[718,365,54,54]}
+{"kind":"textbox","id":"sh/98rehwve","slide":8,"text":"小行星","textPreview":"小行星","textChars":3,"textLines":1,"bbox":[683,432,125,28]}
+{"kind":"shape","id":"sh/m5gvmhwn","slide":8,"bbox":[640,375,66,30]}
+{"kind":"shape","id":"sh/n6pwfmd8","slide":8,"bbox":[110,610,1060,48]}
+{"kind":"textbox","id":"sh/0jydkreh","slide":8,"text":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textPreview":"演讲时连按三次翻页键，就能看到“靠近黑洞”的动态过程","textChars":26,"textLines":1,"bbox":[150,616,980,30]}
+{"kind":"notes","id":"nt/fu1gfa1s","slide":8,"text":"这一组连续三页是动态演示。请边点击边讲：第 3 步：太靠近了。越过事件视界后，小行星无法返回。要提醒同学们，这只是帮助理解的示意图，真实的黑洞和轨道比图上复杂得多。\n\n科学参考：NASA Space Place, What Is a Black Hole?"}
+{"kind":"slide","id":"sl/m90b6t0r","slide":9,"title":"08 / 09","textShapes":12}
+{"kind":"textbox","id":"sh/ozitcv29","slide":9,"text":"08 / 09","textPreview":"08 / 09","textChars":7,"textLines":1,"bbox":[74,48,100,28]}
+{"kind":"textbox","id":"sh/xc3mho32","slide":9,"text":"看不见黑洞，科学家怎样找到它？","textPreview":"看不见黑洞，科学家怎样找到它？","textChars":15,"textLines":1,"bbox":[74,80,910,62]}
+{"kind":"shape","id":"sh/cbu58j2h","slide":9,"bbox":[74,150,112,5]}
+{"kind":"shape","id":"sh/zelojyl8","slide":9,"bbox":[191,205,104,104]}
+{"kind":"textbox","id":"sh/ydcnatkn","slide":9,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[191,225,104,42]}
+{"kind":"textbox","id":"sh/l036l83y","slide":9,"text":"看周围的星星","textPreview":"看周围的星星","textChars":6,"textLines":1,"bbox":[95,345,300,40]}
+{"kind":"textbox","id":"sh/kzu5c32t","slide":9,"text":"星星绕着一个看不见的东西转，说明那里可能有黑洞。","textPreview":"星星绕着一个看不见的东西转，说明那里可能有黑洞。","textChars":24,"textLines":1,"bbox":[107,400,276,88]}
+{"kind":"shape","id":"sh/725onyl4","slide":9,"bbox":[561,205,104,104]}
+{"kind":"textbox","id":"sh/m1cnetkj","slide":9,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[561,225,104,42]}
+{"kind":"textbox","id":"sh/s7yt4b21","slide":9,"text":"看高能光","textPreview":"看高能光","textChars":4,"textLines":1,"bbox":[465,345,300,40]}
+{"kind":"textbox","id":"sh/d87uxg3m","slide":9,"text":"吸积盘特别热，会发出 X 射线等高能光。","textPreview":"吸积盘特别热，会发出 X 射线等高能光。","textChars":20,"textLines":1,"bbox":[477,400,276,88]}
+{"kind":"shape","id":"sh/q5gb21kb","slide":9,"bbox":[931,205,104,104]}
+{"kind":"textbox","id":"sh/r6pcv6lw","slide":9,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[931,225,104,42]}
+{"kind":"textbox","id":"sh/0bit8b2d","slide":9,"text":"听时空的震动","textPreview":"听时空的震动","textChars":6,"textLines":1,"bbox":[835,345,300,40]}
+{"kind":"textbox","id":"sh/1cru1g3y","slide":9,"text":"两个黑洞合并时，会产生引力波。","textPreview":"两个黑洞合并时，会产生引力波。","textChars":15,"textLines":1,"bbox":[847,400,276,88]}
+{"kind":"shape","id":"sh/e9gb61k7","slide":9,"bbox":[135,565,1010,58]}
+{"kind":"textbox","id":"sh/fapcz6ls","slide":9,"text":"科学家像侦探一样，通过黑洞留下的“线索”来发现它。","textPreview":"科学家像侦探一样，通过黑洞留下的“线索”来发现它。","textChars":25,"textLines":1,"bbox":[180,575,920,36]}
+{"kind":"notes","id":"nt/m90b6t0r","slide":9,"text":"黑洞本身看不见，科学家却能看见它对周围的影响。比如，一颗星星好像在绕着看不见的伙伴转。又比如，黑洞旁边的热气体会发出很强的 X 射线。最近，科学家还可以探测两个黑洞合并时产生的引力波。\n\n科学参考：NASA Science, How do we detect black holes?；LIGO, What are gravitational waves?"}
+{"kind":"slide","id":"sl/jetc3ut0","slide":10,"title":"今天我们知道了","textShapes":6}
+{"kind":"shape","id":"sh/epobatgr","slide":10,"bbox":[80,90,7,7]}
+{"kind":"shape","id":"sh/xcryxg7y","slide":10,"bbox":[180,230,4,4]}
+{"kind":"shape","id":"sh/wbih4b6d","slide":10,"bbox":[365,120,5,5]}
+{"kind":"shape","id":"sh/n69grmpw","slide":10,"bbox":[1080,95,6,6]}
+{"kind":"shape","id":"sh/250zy18b","slide":10,"bbox":[1170,300,4,4]}
+{"kind":"shape","id":"sh/98rytw72","slide":10,"bbox":[950,590,6,6]}
+{"kind":"shape","id":"sh/o7ih0r6h","slide":10,"bbox":[220,610,4,4]}
+{"kind":"textbox","id":"sh/72t03qp0","slide":10,"text":"今天我们知道了","textPreview":"今天我们知道了","textChars":7,"textLines":1,"bbox":[140,118,400,46]}
+{"kind":"textbox","id":"sh/61kzalof","slide":10,"text":"黑洞是引力极强的天体","textPreview":"黑洞是引力极强的天体","textChars":10,"textLines":1,"bbox":[140,205,620,45]}
+{"kind":"textbox","id":"sh/ofqtgnyt","slide":10,"text":"有些来自大恒星的末期","textPreview":"有些来自大恒星的末期","textChars":10,"textLines":1,"bbox":[140,262,620,45]}
+{"kind":"textbox","id":"sh/9gza9sze","slide":10,"text":"科学家能用线索发现它","textPreview":"科学家能用线索发现它","textChars":10,"textLines":1,"bbox":[140,319,620,45]}
+{"kind":"shape","id":"sh/mdobedg3","slide":10,"bbox":[895,225,240,240]}
+{"kind":"shape","id":"sh/nehs7iho","slide":10,"bbox":[795,282,440,130]}
+{"kind":"textbox","id":"sh/0b6tc3yx","slide":10,"text":"宇宙还有很多问题，等我们去发现！","textPreview":"宇宙还有很多问题，等我们去发现！","textChars":16,"textLines":1,"bbox":[140,525,820,54]}
+{"kind":"textbox","id":"sh/1cfa58zi","slide":10,"text":"谢谢大家！","textPreview":"谢谢大家！","textChars":5,"textLines":1,"bbox":[140,604,280,42]}
+{"kind":"notes","id":"nt/jetc3ut0","slide":10,"text":"今天我们认识了黑洞：它是引力特别强的天体，有些来自大恒星的末期。虽然我们看不见黑洞本身，但科学家可以从周围星星、明亮的热气体和时空震动中发现它。宇宙里还有很多秘密，希望有一天我们也能参与发现。谢谢大家！\n\n综合参考：NASA Science, Black Holes；NASA Space Place, What Is a Black Hole? https://spaceplace.nasa.gov/black-holes/en/"}

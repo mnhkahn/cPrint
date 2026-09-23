@@ -6,7 +6,17 @@ plugins {
     id("androidx.navigation.safeargs.kotlin")
 }
 
-val releaseKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+val releaseKeystoreFile = System.getenv("RELEASE_KEYSTORE_FILE")
+val releaseVersion = providers.gradleProperty("releaseVersion").orNull
+    ?.removePrefix("v")
+    ?.also { require(it.matches(Regex("\\d+\\.\\d+\\.\\d+([-.][0-9A-Za-z.-]+)?"))) { "Invalid releaseVersion: $it" } }
+
+// A release version supplied by CI (for example 0.1.7) is also embedded in
+// the APK. This keeps the version shown on the PGYER page and in the app equal.
+fun versionCodeFor(version: String): Int {
+    val numericParts = version.substringBefore('-').split('.').map { it.toInt() }
+    return numericParts[0] * 1_000_000 + numericParts[1] * 1_000 + numericParts[2]
+}
 
 android {
     namespace = "com.cprint.app"
@@ -16,13 +26,11 @@ android {
         applicationId = "com.cprint.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 5
-        versionName = "1.0.5"
+        versionCode = releaseVersion?.let(::versionCodeFor) ?: 5
+        versionName = releaseVersion ?: "1.0.5"
 
-        // GitHub Releases used by the in-app updater. Keep this pointing at the
-        // canonical public repository so update packages never come from an
-        // arbitrary URL supplied by the UI.
-        buildConfigField("String", "GITHUB_REPOSITORY", "\"mnhkahn/cPrint\"")
+        // Public download page only. The API key remains exclusively in CI.
+        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/zuoyexiaohuoban\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -34,9 +42,9 @@ android {
         if (releaseKeystoreFile != null) {
             create("release") {
                 storeFile = file(releaseKeystoreFile)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                storePassword = System.getenv("HOMEWORK_RELEASE_STORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("HOMEWORK_RELEASE_STORE_PASSWORD")
             }
         }
     }

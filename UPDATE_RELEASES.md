@@ -1,11 +1,19 @@
-# 自动更新发布说明
+# 蒲公英发布与自动更新
 
-“打印小帮手”会在启动时检查 GitHub 仓库的 Latest Release，并在用户确认后下载其中第一个 `.apk` 资源，交给 Android 系统安装器完成更新。
+发布由 GitHub Actions 的 **Android Release Build** 完成。请在仓库 Secrets 配置：
 
-## 发布一个可更新版本
+- `RELEASE_KEYSTORE_BASE64`：发布签名 keystore 的 Base64 内容
+- `HOMEWORK_RELEASE_STORE_PASSWORD`：keystore 与 key 的密码
+- `PGYER_API_KEY`：蒲公英 API Key
+- `LARK_RELEASE_WEBHOOK`：飞书群机器人 Webhook（发布成功后通知）
 
-1. 在 `app/build.gradle.kts` 同时提高 `versionCode` 和 `versionName`；`versionName` 必须与标签对应，例如 `1.1.0` 对应 `v1.1.0`。
-2. 将用于首次安装应用的同一把签名密钥配置为仓库 Secrets：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。
-3. 推送标签：`git tag v1.1.0 && git push origin v1.1.0`。
+推送版本 tag 即可发布，例如：
 
-工作流会构建签名 APK 并作为 GitHub Release 资源上传。Android 不能让普通应用静默安装 APK；用户首次更新时需允许“打印小帮手”安装未知应用，随后仍会由系统显示安装确认。
+```sh
+git tag 0.1.7
+git push origin 0.1.7
+```
+
+也可以手动运行 **Android Release Build**，填写 `0.1.7` 这类版本号。工作流会签名 APK、通过 `git-chglog` 生成更新说明、上传并轮询蒲公英发布状态，然后将相同更新说明写入蒲公英和 GitHub Release，并发送飞书机器人通知。公开固定下载页为 <https://www.pgyer.com/zuoyexiaohuoban>。
+
+App 每次启动会读取该公开页的最新版本号和更新说明；如果版本更新，会显示“前往蒲公英更新”。点击后由浏览器打开蒲公英页面，由蒲公英生成短时下载链接并引导安装。App 不再从 GitHub 下载 APK，也不包含蒲公英 API Key。
