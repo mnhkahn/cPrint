@@ -76,13 +76,28 @@ jobs:
           PGYER_API_KEY: ${{ secrets.PGYER_API_KEY }}
         run: |
           test -n "$PGYER_API_KEY"
-          curl --fail-with-body --silent --show-error --data-urlencode "_api_key=$PGYER_API_KEY" --data-urlencode "buildType=apk" --data-urlencode "buildInstallType=1" --data-urlencode "buildInstallDate=2" --data-urlencode "buildUpdateDescription@release-notes.md" https://www.pgyer.com/apiv2/app/getCOSToken > pgyer-token.json
+          UPDATE_DESCRIPTION="$(<release-notes.md)"
+          curl --fail-with-body --silent --show-error \
+            --form "_api_key=$PGYER_API_KEY" \
+            --form "buildType=android" \
+            --form "buildInstallType=1" \
+            --form "buildInstallDate=2" \
+            --form "buildUpdateDescription=$UPDATE_DESCRIPTION" \
+            https://www.pgyer.com/apiv2/app/getCOSToken > pgyer-token.json
           jq -e '.code == 0' pgyer-token.json
           echo "build_key=$(jq -r '.data.key' pgyer-token.json)" >> "$GITHUB_OUTPUT"
       - name: Upload APK to PGYER
         run: |
           ENDPOINT="$(jq -r '.data.endpoint' pgyer-token.json)"
-          curl --fail-with-body --silent --show-error -X POST "$ENDPOINT" -F "key=$(jq -r '.data.params.key' pgyer-token.json)" -F "signature=$(jq -r '.data.params.signature' pgyer-token.json)" -F "x-cos-security-token=$(jq -r '.data.params["x-cos-security-token"]' pgyer-token.json)" -F "x-cos-meta-file-name=app-release.apk" -F "file=@app/build/outputs/apk/release/app-release.apk"
+          KEY="$(jq -r '.data.params.key' pgyer-token.json)"
+          SIGNATURE="$(jq -r '.data.params.signature' pgyer-token.json)"
+          SECURITY_TOKEN="$(jq -r '.data.params["x-cos-security-token"]' pgyer-token.json)"
+          curl --fail-with-body --silent --show-error -X POST "$ENDPOINT" \
+            --form-string "key=$KEY" \
+            --form-string "signature=$SIGNATURE" \
+            --form-string "x-cos-security-token=$SECURITY_TOKEN" \
+            --form-string "x-cos-meta-file-name=app-release.apk" \
+            --form "file=@app/build/outputs/apk/release/app-release.apk"
       - name: Wait for PGYER publication
         id: pgyer
         env:
