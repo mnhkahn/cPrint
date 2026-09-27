@@ -3,6 +3,8 @@ package com.cprint.app.presentation.main
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,13 +22,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.outlined.RestorePage
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,6 +47,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -68,6 +76,7 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val driverTestStatus by viewModel.driverTestStatus.collectAsState()
+    var showDriverTest by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -78,6 +87,13 @@ fun MainScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
+                    IconButton(onClick = { showDriverTest = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Bolt,
+                            contentDescription = "驱动管线测试",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                     IconButton(onClick = onCheckForUpdate) {
                         Icon(
                             imageVector = Icons.Default.SystemUpdate,
@@ -94,8 +110,8 @@ fun MainScreen(
                     }
                     IconButton(onClick = onOpenQueue) {
                         Icon(
-                            imageVector = Icons.Default.History,
-                            contentDescription = stringResource(R.string.print_queue),
+                            imageVector = Icons.Outlined.RestorePage,
+                            contentDescription = stringResource(R.string.print_history),
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -136,14 +152,20 @@ fun MainScreen(
                         printer = state.printer,
                         isPrinterConnected = state.isPrinterConnected,
                         recentDocuments = state.recentDocuments,
-                        onDocumentSelected = onDocumentSelected,
-                        driverTestStatus = driverTestStatus,
-                        onRunDriverTest = { viewModel.runDriverPipelineTest() },
-                        onDismissDriverTest = { viewModel.clearDriverTestStatus() }
+                        onDocumentSelected = onDocumentSelected
                     )
                 }
             }
         }
+    }
+
+    if (showDriverTest) {
+        DriverTestDialog(
+            status = driverTestStatus,
+            onRun = { viewModel.runDriverPipelineTest() },
+            onClear = { viewModel.clearDriverTestStatus() },
+            onClose = { showDriverTest = false }
+        )
     }
 }
 
@@ -152,24 +174,13 @@ private fun MainContent(
     printer: com.cprint.app.domain.model.Printer?,
     isPrinterConnected: Boolean,
     recentDocuments: List<RecentDocument>,
-    onDocumentSelected: (RecentDocument) -> Unit,
-    driverTestStatus: String?,
-    onRunDriverTest: () -> Unit,
-    onDismissDriverTest: () -> Unit
+    onDocumentSelected: (RecentDocument) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            DriverTestCard(
-                status = driverTestStatus,
-                onRun = onRunDriverTest,
-                onDismiss = onDismissDriverTest
-            )
-        }
-
         item {
             PrinterStatusCard(
                 printer = printer,
@@ -201,36 +212,37 @@ private fun MainContent(
 }
 
 @Composable
-private fun DriverTestCard(
+private fun DriverTestDialog(
     status: String?,
     onRun: () -> Unit,
-    onDismiss: () -> Unit
+    onClear: () -> Unit,
+    onClose: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "驱动管线测试（escpr 原型）",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onRun, enabled = status == null) {
-                    Text(if (status == null) "运行测试" else "运行中/已完成")
-                }
+    AlertDialog(
+        onDismissRequest = onClose,
+        icon = { Icon(Icons.Default.Bolt, contentDescription = null) },
+        title = { Text("驱动管线测试") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text("使用内置样例检查驱动能否正常生成打印数据，不会实际出纸。首次运行需要下载驱动包。")
                 if (status != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = onDismiss) { Text("清除") }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(status, style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (status != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall
-                )
+        },
+        confirmButton = {
+            TextButton(onClick = onRun, enabled = status == null) { Text("运行测试") }
+        },
+        dismissButton = {
+            Row {
+                if (status != null) {
+                    TextButton(onClick = onClear) { Text("清除结果") }
+                }
+                TextButton(onClick = onClose) { Text("关闭") }
             }
         }
-    }
+    )
 }
 
 @Composable

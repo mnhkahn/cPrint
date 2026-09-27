@@ -59,6 +59,7 @@
 
     <!-- Print Queue -->
     <string name="print_queue">Print Queue</string>
+    <string name="print_history">打印历史</string>
     <string name="active_jobs">Active Jobs</string>
     <string name="history">History</string>
     <string name="no_active_jobs">No Active Jobs</string>
