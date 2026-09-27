@@ -4,7 +4,6 @@ import android.graphics.pdf.PdfRenderer
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
-import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.print.PageRange
 import android.print.PrintAttributes
@@ -32,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentHashMap.newKeySet
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
@@ -55,13 +56,16 @@ class CPrintPrintService : PrintService() {
     @Inject lateinit var createPrintJob: CreatePrintJobUseCase
     @Inject lateinit var usbPrintRepository: UsbPrintRepository
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // PrintJob and PrintDocument enforce main-thread access, even for getters.
+    // Only file/PDF work and the USB pipeline may run on IO.
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val printerIdByLocalId = ConcurrentHashMap<String, PrinterId>()
     private val activeJobs = ConcurrentHashMap<String, Job>()
     // Print framework callbacks are not guaranteed to be delivered only once.
     // Keep this separate from activeJobs so the check-and-add is atomic.
     private val enqueuedSystemJobIds = newKeySet<String>()
     private val printMutex = Mutex()
+    private var printingJobId: String? = null
 
     override fun onCreatePrinterDiscoverySession(): PrinterDiscoverySession =
         CPrintPrinterDiscoverySession()
@@ -74,14 +78,29 @@ class CPrintPrintService : PrintService() {
         }
         activeJobs[key] = serviceScope.launch {
             printMutex.withLock {
-                processPrintJob(printJob)
+                printingJobId = key
+                try {
+                    processPrintJob(printJob)
+                } finally {
+                    printingJobId = null
+                }
+            }
+        }.also { job ->
+            job.invokeOnCompletion {
+                activeJobs.remove(key)
+                enqueuedSystemJobIds.remove(key)
             }
         }
     }
 
     override fun onRequestCancelPrintJob(printJob: PrintJob) {
-        activeJobs.remove(printJob.id.toString())?.cancel()
-        serviceScope.launch { usbPrintRepository.cancelPrint() }
+        val key = printJob.id.toString()
+        // Cancelling a waiting job must not stop another job's USB transfer.
+        if (printingJobId == key) {
+            serviceScope.launch { usbPrintRepository.cancelPrint() }
+        }
+        activeJobs[key]?.cancel()
+        printJob.cancel()
     }
 
     override fun onDestroy() {
@@ -93,36 +112,47 @@ class CPrintPrintService : PrintService() {
     }
 
     private suspend fun processPrintJob(systemJob: PrintJob) {
-        val key = systemJob.id.toString()
         var cachedPdf: File? = null
         try {
-            if (!systemJob.isQueued) return
-            systemJob.start()
+            if (!systemJob.isQueued || !systemJob.start()) return
 
-            cachedPdf = copyDocumentToCache(systemJob)
-            val pageCount = getPdfPageCount(cachedPdf)
-            val settings = systemJob.info.attributes.toPrintSettings().copy(
-                pageRange = systemJob.info.pages.toCPrintPageRange()
+            val info = systemJob.info
+            // Obtain the descriptor on Main, but consume its pipe on IO.
+            val data = checkNotNull(systemJob.document.data) { "The system print document is unavailable" }
+            val pageCount = ParcelFileDescriptor.AutoCloseInputStream(data).use { input ->
+                val file = File.createTempFile("system-print-", ".pdf", cacheDir)
+                cachedPdf = file
+                withContext(Dispatchers.IO) {
+                    FileOutputStream(file).use { destination -> input.copyTo(destination) }
+                    check(file.length() > 0L) { "The system print document is empty" }
+                    getPdfPageCount(file)
+                }
+            }
+            val settings = info.attributes.toPrintSettings().copy(
+                copies = info.copies.coerceAtLeast(1),
+                pageRange = info.pages.toCPrintPageRange()
             )
             val documentUri = FileProvider.getUriForFile(
                 this,
                 "$packageName.fileprovider",
-                cachedPdf
+                checkNotNull(cachedPdf)
             )
 
             val progressJob = serviceScope.launch {
                 usbPrintRepository.getPrintProgress().collectLatest { progress ->
-                    if (systemJob.isStarted) systemJob.setProgress(progress.coerceIn(0, 1) / 100f)
+                    if (systemJob.isStarted) systemJob.setProgress(progress.coerceIn(0, 100) / 100f)
                 }
             }
             try {
-                val result = createPrintJob(
-                    documentName = systemJob.info.label.ifBlank { "document.pdf" },
-                    documentUri = documentUri.toString(),
-                    documentType = PDF_MIME_TYPE,
-                    totalPages = pageCount,
-                    settings = settings
-                )
+                val result = withContext(Dispatchers.IO) {
+                    createPrintJob(
+                        documentName = info.label.ifBlank { "document.pdf" },
+                        documentUri = documentUri.toString(),
+                        documentType = PDF_MIME_TYPE,
+                        totalPages = pageCount,
+                        settings = settings
+                    )
+                }
                 if (result.isSuccess && !systemJob.isCancelled) {
                     systemJob.setProgress(1f)
                     systemJob.complete()
@@ -132,29 +162,16 @@ class CPrintPrintService : PrintService() {
             } finally {
                 progressJob.cancel()
             }
+        } catch (error: CancellationException) {
+            systemJob.cancel()
+            throw error
         } catch (error: Exception) {
             Timber.e(error, "System print job failed")
             if (!systemJob.isCancelled) {
                 systemJob.fail(error.message ?: "Unable to process print job")
             }
         } finally {
-            activeJobs.remove(key)
-            enqueuedSystemJobIds.remove(key)
             cachedPdf?.delete()
-        }
-    }
-
-    private fun copyDocumentToCache(systemJob: PrintJob): File {
-        val output = File.createTempFile("system-print-", ".pdf", cacheDir)
-        try {
-            ParcelFileDescriptor.AutoCloseInputStream(systemJob.document.data).use { input ->
-                FileOutputStream(output).use { destination -> input.copyTo(destination) }
-            }
-            check(output.length() > 0L) { "The system print document is empty" }
-            return output
-        } catch (error: Exception) {
-            output.delete()
-            throw error
         }
     }
 
