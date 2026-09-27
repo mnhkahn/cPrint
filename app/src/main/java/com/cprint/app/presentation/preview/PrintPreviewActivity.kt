@@ -34,6 +34,11 @@ class PrintPreviewActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val documentUri = intent.getStringExtra(EXTRA_DOCUMENT_URI)
+        if (documentUri.isNullOrBlank()) {
+            Toast.makeText(this, "没有可预览的文件，请重新选择文档", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
         documentUri?.let { uriString ->
             try {
                 // Try to take persistable permission if available

@@ -119,6 +119,16 @@ class PrintPreviewViewModel @Inject constructor(
         }
     }
 
+    fun updatePageCount(pageCount: Int) {
+        if (pageCount <= 0) return
+        _totalPages.value = pageCount
+        _currentPage.value = _currentPage.value.coerceIn(0, pageCount - 1)
+        val state = _uiState.value
+        if (state is PrintPreviewUiState.Success) {
+            _uiState.value = state.copy(pageCount = pageCount)
+        }
+    }
+
     fun goToNextPage() {
         goToPage(_currentPage.value + 1)
     }

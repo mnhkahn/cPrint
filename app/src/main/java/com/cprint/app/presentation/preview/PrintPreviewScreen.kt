@@ -3,9 +3,7 @@
 package com.cprint.app.presentation.preview
 
 import android.graphics.Bitmap
-import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -47,7 +45,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +71,12 @@ import com.cprint.app.domain.model.ColorMode
 import com.cprint.app.domain.model.Orientation
 import com.cprint.app.domain.model.PaperSize
 import com.cprint.app.domain.model.PrintSettings
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /**
  * Print Preview Screen composable
@@ -142,6 +145,7 @@ fun PrintPreviewScreen(
                         totalPages = state.pageCount,
                         currentPage = currentPage,
                         onPageChange = { viewModel.goToPage(it) },
+                        onPageCountReady = { viewModel.updatePageCount(it) },
                         printSettings = printSettings,
                         onSettingsChange = { viewModel.updatePrintSettings(it) }
                     )
@@ -166,6 +170,7 @@ private fun PreviewContent(
     totalPages: Int,
     currentPage: Int,
     onPageChange: (Int) -> Unit,
+    onPageCountReady: (Int) -> Unit,
     printSettings: PrintSettings,
     onSettingsChange: (PrintSettings) -> Unit
 ) {
@@ -185,6 +190,7 @@ private fun PreviewContent(
                 totalPages = totalPages,
                 currentPage = currentPage,
                 onPageChange = onPageChange,
+                onPageCountReady = onPageCountReady,
                 paperSize = printSettings.paperSize,
                 orientation = printSettings.orientation
             )
@@ -204,26 +210,36 @@ private fun PdfPageViewer(
     totalPages: Int,
     currentPage: Int,
     onPageChange: (Int) -> Unit,
+    onPageCountReady: (Int) -> Unit,
     paperSize: PaperSize,
     orientation: Orientation
 ) {
     val context = LocalContext.current
+    var retryCount by remember(documentUri) { mutableStateOf(0) }
+    var document by remember(documentUri, retryCount) { mutableStateOf<PdfPreviewDocument?>(null) }
+    var loadError by remember(documentUri, retryCount) { mutableStateOf<String?>(null) }
     val pagerState = rememberPagerState(
         initialPage = currentPage,
-        pageCount = { totalPages }
+        pageCount = { document?.pageCount ?: totalPages.coerceAtLeast(1) }
     )
 
-    var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
-    var parcelFileDescriptor by remember { mutableStateOf<ParcelFileDescriptor?>(null) }
-
-    LaunchedEffect(documentUri) {
+    LaunchedEffect(documentUri, retryCount) {
+        var openedDocument: PdfPreviewDocument? = null
         try {
-            val uri = Uri.parse(documentUri)
-            val pfd = context.contentResolver.openFileDescriptor(uri, "r")
-            parcelFileDescriptor = pfd
-            pdfRenderer = pfd?.let { PdfRenderer(it) }
-        } catch (e: Exception) {
-            // Handle error
+            withContext(Dispatchers.IO) {
+                // Keep ownership even if this effect is cancelled before IO returns.
+                openedDocument = PdfPreviewDocument.open(context, Uri.parse(documentUri))
+            }
+            document = openedDocument
+            onPageCountReady(checkNotNull(openedDocument).pageCount)
+            awaitCancellation()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Timber.e(error, "Unable to open PDF preview")
+            loadError = "无法打开 PDF，文件可能已失效、加密或损坏。请重试或重新选择文件。"
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) { openedDocument?.close() }
         }
     }
 
@@ -235,13 +251,6 @@ private fun PdfPageViewer(
 
     LaunchedEffect(pagerState.currentPage) {
         onPageChange(pagerState.currentPage)
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            pdfRenderer?.close()
-            parcelFileDescriptor?.close()
-        }
     }
 
     val aspectRatio = if (orientation == Orientation.LANDSCAPE) {
@@ -261,13 +270,16 @@ private fun PdfPageViewer(
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            if (pdfRenderer != null) {
+            val loadedDocument = document
+            if (loadError != null) {
+                PreviewLoadError(message = loadError!!, onRetry = { retryCount++ })
+            } else if (loadedDocument != null) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
                     PdfPageImage(
-                        pdfRenderer = pdfRenderer!!,
+                        document = loadedDocument,
                         pageNumber = page
                     )
                 }
@@ -285,27 +297,23 @@ private fun PdfPageViewer(
 
 @Composable
 private fun PdfPageImage(
-    pdfRenderer: PdfRenderer,
+    document: PdfPreviewDocument,
     pageNumber: Int
 ) {
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    var retryCount by remember(document, pageNumber) { mutableStateOf(0) }
+    var bitmap by remember(document, pageNumber, retryCount) { mutableStateOf<Bitmap?>(null) }
+    var renderError by remember(document, pageNumber, retryCount) { mutableStateOf(false) }
+    var scale by remember(document, pageNumber) { mutableFloatStateOf(1f) }
+    var offset by remember(document, pageNumber) { mutableStateOf(Offset.Zero) }
 
-    LaunchedEffect(pageNumber) {
-        bitmap = try {
-            pdfRenderer.openPage(pageNumber).use { page ->
-                val bmp = Bitmap.createBitmap(
-                    page.width * 2,
-                    page.height * 2,
-                    Bitmap.Config.ARGB_8888
-                )
-                bmp.eraseColor(android.graphics.Color.WHITE)
-                page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                bmp
-            }
-        } catch (e: Exception) {
-            null
+    LaunchedEffect(document, pageNumber, retryCount) {
+        try {
+            bitmap = withContext(Dispatchers.IO) { document.renderPage(pageNumber) }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Timber.e(error, "Unable to render preview page %s", pageNumber + 1)
+            renderError = true
         }
     }
 
@@ -328,6 +336,11 @@ private fun PdfPageImage(
             },
         contentAlignment = Alignment.Center
     ) {
+        if (renderError) {
+            PreviewLoadError(message = "这一页预览失败，请重试。", onRetry = { retryCount++ })
+        } else if (bitmap == null) {
+            CircularProgressIndicator()
+        }
         bitmap?.let { bmp ->
             Image(
                 bitmap = bmp.asImageBitmap(),
@@ -343,6 +356,18 @@ private fun PdfPageImage(
                     }
             )
         }
+    }
+}
+
+@Composable
+private fun PreviewLoadError(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(message, color = Color.DarkGray, textAlign = TextAlign.Center)
+        TextButton(onClick = onRetry) { Text("重试") }
     }
 }
 
