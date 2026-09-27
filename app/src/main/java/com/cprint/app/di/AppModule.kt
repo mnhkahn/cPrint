@@ -62,10 +62,9 @@ object AppModule {
     @Provides
     @Singleton
     fun providePrinterRepository(
-        @ApplicationContext context: Context,
-        printerDao: PrinterDao
+        implementation: PrinterRepositoryImpl
     ): PrinterRepository {
-        return PrinterRepositoryImpl(context, printerDao)
+        return implementation
     }
 
     @Provides
@@ -80,8 +79,8 @@ object AppModule {
     @Provides
     @Singleton
     fun provideUsbPrintRepository(
-        @ApplicationContext context: Context
+        implementation: UsbPrintRepositoryImpl
     ): UsbPrintRepository {
-        return UsbPrintRepositoryImpl(context)
+        return implementation
     }
 }

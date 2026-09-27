@@ -59,6 +59,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- USB attachment resolves to an Activity so Android can offer
+                 cPrint as the default handler and launch it on insertion. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/usb_device_filter" />
+
             <!-- Handle PDF files -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -120,15 +130,8 @@
             android:exported="true"
             android:enabled="true">
             <intent-filter android:priority="1000">
-                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
                 <action android:name="android.hardware.usb.action.USB_DEVICE_DETACHED" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="com.cprint.app.USB_PERMISSION" />
-            </intent-filter>
-            <meta-data
-                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
-                android:resource="@xml/usb_device_filter" />
         </receiver>
 
         <!-- Print Service -->

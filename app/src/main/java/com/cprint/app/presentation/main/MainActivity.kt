@@ -27,7 +27,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import android.hardware.usb.UsbConstants
+import com.cprint.app.domain.model.KnownPrinters
+import com.cprint.app.util.UsbUtils
 import com.cprint.app.domain.model.PrinterStatus
 import com.cprint.app.presentation.preview.PrintPreviewActivity
 import com.cprint.app.presentation.queue.PrintQueueActivity
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private val updateManager by lazy { PgyerUpdateManager(this) }
     private var updateDialogVisible = false
+    private val requestedUsbPermissions = mutableSetOf<String>()
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -83,13 +85,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        intent?.let { handleIntent(it) }
+        intent?.let {
+            setIntent(it)
+            handleIntent(it)
+        }
     }
 
     private val usbPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             Timber.d("MainActivity: Received broadcast - ${intent.action}")
             when (intent.action) {
+                UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    intent.usbDevice()?.let { requestedUsbPermissions.remove(it.deviceName) }
+                }
                 UsbDeviceReceiver.ACTION_USB_PERMISSION -> {
                     val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
@@ -142,6 +150,7 @@ class MainActivity : ComponentActivity() {
         // Register USB permission receiver early in onCreate so it's active during permission dialog
         val filter = IntentFilter().apply {
             addAction(UsbDeviceReceiver.ACTION_USB_PERMISSION)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             addAction(UsbDeviceReceiver.ACTION_PRINTER_CONNECTED)
             addAction(UsbDeviceReceiver.ACTION_PRINTER_CONNECTION_FAILED)
             addAction(UsbDeviceReceiver.ACTION_PRINTER_DISCONNECTED)
@@ -154,9 +163,9 @@ class MainActivity : ComponentActivity() {
         )
         Timber.d("MainActivity: USB permission receiver registered in onCreate")
 
-        checkAndRequestPermissions()
         observeViewModel()
         handleIntent(intent)
+        checkAndRequestPermissions()
 
         // Headless trigger for automation: adb shell am start ... --ez drvtest true
         if (intent.getBooleanExtra("drvtest", false)) {
@@ -283,6 +292,12 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent) {
         when (intent.action) {
+            UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                intent.usbDevice()?.let {
+                    requestedUsbPermissions.remove(it.deviceName)
+                    autoConnectUsbPrinter(it)
+                }
+            }
             Intent.ACTION_VIEW -> {
                 intent.data?.let { uri ->
                     handleSelectedDocument(uri)
@@ -320,51 +335,38 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(this, PrintQueueActivity::class.java))
     }
 
-    /**
-     * Check for already connected USB printers and auto-connect if permission is granted
-     */
+    /** USB access is independent of storage and notification permissions. */
     private fun checkAndAutoConnectUsbPrinter() {
         val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
-        val devices = usbManager.deviceList.values
+        usbManager.deviceList.values.firstOrNull { isPrinter(it) }?.let(::autoConnectUsbPrinter)
+    }
 
-        // Find printer class devices
-        val printerDevice = devices.firstOrNull { device ->
-            (0 until device.interfaceCount).any { i ->
-                device.getInterface(i).interfaceClass == UsbConstants.USB_CLASS_PRINTER
-            }
-        }
+    private fun isPrinter(device: UsbDevice): Boolean =
+        UsbUtils.isPrinter(device) || KnownPrinters.findPrinter(device.vendorId, device.productId) != null
 
-        printerDevice?.let { device ->
-            Timber.d("MainActivity: Found USB printer: ${device.deviceName} (VID:${device.vendorId}, PID:${device.productId})")
-
-            // Check if already connected (has permission and connection is active)
-            if (usbManager.hasPermission(device)) {
-                // Check if already connected by looking at the view model state
-                val currentState = viewModel.uiState.value
-                if (currentState is MainUiState.Success && currentState.isPrinterConnected) {
-                    Timber.d("MainActivity: Printer already connected, skipping auto-connect")
-                    return
-                }
-
-                Timber.d("MainActivity: Already has permission for printer, triggering connection")
-                Toast.makeText(this, "检测到已连接的打印机，正在自动连接...", Toast.LENGTH_SHORT).show()
-                viewModel.connectPrinter(device)
-            } else {
-                Timber.d("MainActivity: No permission for printer, requesting permission")
-                // Trigger the UsbDeviceReceiver to request permission
-                val intent = Intent(UsbDeviceReceiver.ACTION_USB_PERMISSION).apply {
-                    setPackage(packageName)
-                }
-                val permissionIntent = PendingIntent.getBroadcast(
-                    this,
-                    device.vendorId * 10000 + device.productId,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-                )
-                usbManager.requestPermission(device, permissionIntent)
-            }
-        } ?: run {
-            Timber.d("MainActivity: No USB printer found")
+    private fun autoConnectUsbPrinter(device: UsbDevice) {
+        if (!isPrinter(device)) return
+        val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
+        if (usbManager.hasPermission(device)) {
+            // Repository checks the actual USB connection, not persisted READY state.
+            // Repeated onResume/onNewIntent calls do not reopen the same connection.
+            viewModel.connectPrinter(device)
+        } else if (requestedUsbPermissions.add(device.deviceName)) {
+            val permissionIntent = PendingIntent.getBroadcast(
+                this,
+                device.deviceId,
+                Intent(UsbDeviceReceiver.ACTION_USB_PERMISSION).setPackage(packageName),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            usbManager.requestPermission(device, permissionIntent)
         }
     }
+
+    private fun Intent.usbDevice(): UsbDevice? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            getParcelableExtra(UsbManager.EXTRA_DEVICE)
+        }
 }

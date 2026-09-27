@@ -64,6 +64,10 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
     private var isCancelled = false
 
+    fun isConnectedTo(device: UsbDevice): Boolean =
+        currentDevice?.deviceName == device.deviceName &&
+            currentConnection != null && bulkOutEndpoint != null && driverRoute != null
+
     override suspend fun sendPrintJob(job: PrintJob, settings: PrintSettings): Result<Unit> {
         android.util.Log.d("UsbPrintRepo", "sendPrintJob STARTED for: ${job.documentName}")
         Timber.d("sendPrintJob started for: ${job.documentName}, type: ${job.documentType}")
@@ -373,7 +377,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
                         "Printer identified: mfg=${identity.manufacturer}, model=${identity.model}, " +
                             "route=${driverRoute?.family}, reason=${driverRoute?.reason}"
                     )
-                    return true
+                    return bulkOutEndpoint != null
                 }
             }
         }

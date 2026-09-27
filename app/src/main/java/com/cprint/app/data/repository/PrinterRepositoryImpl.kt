@@ -15,6 +15,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.Date
 import java.util.UUID
 import javax.inject.Inject
@@ -26,8 +30,10 @@ import javax.inject.Singleton
 @Singleton
 class PrinterRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val printerDao: PrinterDao
+    private val printerDao: PrinterDao,
+    private val usbPrintRepository: UsbPrintRepositoryImpl
 ) : PrinterRepository {
+    private val connectionMutex = Mutex()
 
     private val usbManager: UsbManager by lazy {
         context.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -51,12 +57,30 @@ class PrinterRepositoryImpl @Inject constructor(
         return printerDao.getPrinterById(printerId)?.toDomainModel()
     }
 
-    override suspend fun connectPrinter(device: UsbDevice): Result<Printer> {
+    override suspend fun connectPrinter(device: UsbDevice): Result<Printer> =
+        withContext(Dispatchers.IO) {
+            connectionMutex.withLock { connectDevice(device) }
+        }
+
+    private suspend fun connectDevice(device: UsbDevice): Result<Printer> {
+        var openedHere = false
         return try {
             val printerInfo = KnownPrinters.findPrinter(device.vendorId, device.productId)
                 ?: return Result.failure(IllegalArgumentException("Unsupported printer"))
 
             val existingPrinter = printerDao.getPrinterByVidPid(device.vendorId, device.productId)
+            check(usbManager.hasPermission(device)) { "请先授予打印机 USB 访问权限" }
+            if (usbPrintRepository.isConnectedTo(device) && existingPrinter?.status == PrinterStatus.READY) {
+                return Result.success(existingPrinter.toDomainModel())
+            }
+            if (!usbPrintRepository.isConnectedTo(device)) {
+                val connection = checkNotNull(usbManager.openDevice(device)) { "无法打开 USB 打印机" }
+                usbPrintRepository.disconnect()
+                openedHere = true
+                if (!usbPrintRepository.connect(device, connection)) {
+                    error("无法初始化 USB 打印机")
+                }
+            }
 
             val printer = if (existingPrinter != null) {
                 existingPrinter.copy(
@@ -88,12 +112,27 @@ class PrinterRepositoryImpl @Inject constructor(
             printerDao.insertPrinter(printer)
             Result.success(printer.toDomainModel())
         } catch (e: Exception) {
+            if (openedHere) usbPrintRepository.disconnect()
             Result.failure(e)
         }
     }
 
-    override suspend fun disconnectPrinter(): Result<Unit> {
+    override suspend fun disconnectPrinter(): Result<Unit> = withContext(Dispatchers.IO) {
+        connectionMutex.withLock { disconnectCurrentPrinter() }
+    }
+
+    suspend fun disconnectDevice(device: UsbDevice) = withContext(Dispatchers.IO) {
+        connectionMutex.withLock {
+            if (usbPrintRepository.isConnectedTo(device)) usbPrintRepository.disconnect()
+            printerDao.getPrinterByVidPid(device.vendorId, device.productId)?.let {
+                printerDao.updatePrinterStatus(it.id, PrinterStatus.DISCONNECTED)
+            }
+        }
+    }
+
+    private suspend fun disconnectCurrentPrinter(): Result<Unit> {
         return try {
+            usbPrintRepository.disconnect()
             val connectedPrinter = printerDao.getConnectedPrinter().first()
             connectedPrinter?.let {
                 printerDao.updatePrinterStatus(it.id, PrinterStatus.DISCONNECTED)
