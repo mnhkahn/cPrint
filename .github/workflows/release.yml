@@ -123,8 +123,8 @@ jobs:
           PGYER_URL: ${{ steps.pgyer.outputs.download_url }}
         run: |
           test -n "$LARK_RELEASE_WEBHOOK"
-          jq -n --arg text "作业小伙伴 $VERSION 已发布并可安装\n下载地址：$PGYER_URL" \
-            '{msg_type: "text", content: {text: $text}}' \
+          jq -n --arg version "$VERSION" --arg url "$PGYER_URL" \
+            '{msg_type: "text", content: {text: ("cPrint v" + $version + " 打包成功\nAndroid 安装包已发布至蒲公英，可下载更新。\n下载地址：" + $url)}}' \
             | curl --fail-with-body --silent --show-error \
                 -H "Content-Type: application/json" \
                 --data-binary @- "$LARK_RELEASE_WEBHOOK"
@@ -144,8 +144,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           test -n "$LARK_RELEASE_WEBHOOK"
-          jq -n --arg text "cPrint $VERSION 发布失败\n查看日志：$RUN_URL" \
-            '{msg_type: "text", content: {text: $text}}' \
+          jq -n --arg version "$VERSION" --arg url "$RUN_URL" \
+            '{msg_type: "text", content: {text: ("cPrint v" + $version + " 发布失败\n查看日志：" + $url)}}' \
             | curl --fail-with-body --silent --show-error \
                 -H "Content-Type: application/json" \
                 --data-binary @- "$LARK_RELEASE_WEBHOOK"

@@ -25,7 +25,7 @@ class PgyerUpdateManager(private val context: Context) {
             } finally {
                 connection.disconnect()
             }
-            val release = parseRelease(page) ?: return@runCatching null
+            val release = checkNotNull(parseRelease(page)) { "无法读取蒲公英页面的版本信息" }
             if (isNewerVersion(release.version, BuildConfig.VERSION_NAME)) release else null
         }
     }
@@ -57,12 +57,16 @@ class PgyerUpdateManager(private val context: Context) {
 
         internal fun parseRelease(page: String): Release? {
             val decodedPage = Html.fromHtml(page, Html.FROM_HTML_MODE_LEGACY).toString()
-            val version = versionPatterns.firstNotNullOfOrNull { it.find(decodedPage)?.groupValues?.get(1) }
+            // HTML decoding may discard scripts containing release metadata.
+            val version = versionPatterns.firstNotNullOfOrNull { pattern ->
+                pattern.find(page)?.groupValues?.get(1)
+                    ?: pattern.find(decodedPage)?.groupValues?.get(1)
+            }
                 ?.trim()
                 ?.removePrefix("v")
                 ?.takeIf { it.isNotBlank() }
                 ?: return null
-            val notes = notesPattern.find(decodedPage)?.groupValues?.get(1)
+            val notes = (notesPattern.find(page) ?: notesPattern.find(decodedPage))?.groupValues?.get(1)
                 ?.let { runCatching { JsonParser.parseString("\"$it\"").asString }.getOrDefault(it) }
                 ?.trim()
                 .orEmpty()

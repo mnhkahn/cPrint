@@ -30,7 +30,7 @@ android {
         versionName = releaseVersion ?: "1.0.5"
 
         // Public download page only. The API key remains exclusively in CI.
-        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/cprint\"")
+        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/dayinxiaobangshou\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

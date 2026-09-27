@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,11 +29,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -50,9 +54,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -65,12 +71,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.cprint.app.R
 import com.cprint.app.domain.model.ColorMode
-import com.cprint.app.domain.model.DuplexMode
 import com.cprint.app.domain.model.Orientation
 import com.cprint.app.domain.model.PaperSize
-import com.cprint.app.domain.model.PrintQuality
 import com.cprint.app.domain.model.PrintSettings
-import kotlinx.coroutines.launch
 
 /**
  * Print Preview Screen composable
@@ -174,13 +177,16 @@ private fun PreviewContent(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(16.dp)
         ) {
             PdfPageViewer(
                 documentUri = documentUri,
                 totalPages = totalPages,
                 currentPage = currentPage,
-                onPageChange = onPageChange
+                onPageChange = onPageChange,
+                paperSize = printSettings.paperSize,
+                orientation = printSettings.orientation
             )
         }
 
@@ -197,10 +203,11 @@ private fun PdfPageViewer(
     documentUri: String,
     totalPages: Int,
     currentPage: Int,
-    onPageChange: (Int) -> Unit
+    onPageChange: (Int) -> Unit,
+    paperSize: PaperSize,
+    orientation: Orientation
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(
         initialPage = currentPage,
         pageCount = { totalPages }
@@ -237,26 +244,40 @@ private fun PdfPageViewer(
         }
     }
 
-    Card(
+    val aspectRatio = if (orientation == Orientation.LANDSCAPE) {
+        paperSize.heightMm / paperSize.widthMm
+    } else {
+        paperSize.widthMm / paperSize.heightMm
+    }
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        contentAlignment = Alignment.Center
     ) {
-        if (pdfRenderer != null) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                PdfPageImage(
-                    pdfRenderer = pdfRenderer!!,
-                    pageNumber = page
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
+        // Fit the entire sheet within both bounds without changing its shape.
+        val paperWidth = minOf(maxWidth, maxHeight * aspectRatio)
+        Card(
+            modifier = Modifier.size(width = paperWidth, height = paperWidth / aspectRatio),
+            shape = RectangleShape,
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            if (pdfRenderer != null) {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    PdfPageImage(
+                        pdfRenderer = pdfRenderer!!,
+                        pageNumber = page
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         }
     }
@@ -279,6 +300,7 @@ private fun PdfPageImage(
                     page.height * 2,
                     Bitmap.Config.ARGB_8888
                 )
+                bmp.eraseColor(android.graphics.Color.WHITE)
                 page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 bmp
             }
@@ -290,6 +312,7 @@ private fun PdfPageImage(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .clipToBounds()
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     scale = (scale * zoom).coerceIn(1f, 5f)
@@ -309,7 +332,9 @@ private fun PdfPageImage(
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = "Page ${pageNumber + 1}",
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
+                    .fillMaxSize()
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
@@ -422,17 +447,23 @@ private fun DropdownSelector(
     selected: String,
     onSelected: (String) -> Unit
 ) {
-    // Simplified dropdown - in real app use ExposedDropdownMenuBox
-    Card(
-        modifier = Modifier.padding(4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Text(
-            text = selected,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-        )
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text(selected)
+            Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        expanded = false
+                        onSelected(option)
+                    }
+                )
+            }
+        }
     }
 }
 

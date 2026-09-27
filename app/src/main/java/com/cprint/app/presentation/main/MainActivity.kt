@@ -13,6 +13,7 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -27,6 +28,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.withResumed
 import com.cprint.app.domain.model.KnownPrinters
 import com.cprint.app.util.UsbUtils
 import com.cprint.app.domain.model.PrinterStatus
@@ -39,6 +41,7 @@ import com.cprint.app.update.PgyerUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import timber.log.Timber
 
 /**
@@ -50,6 +53,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private val updateManager by lazy { PgyerUpdateManager(this) }
     private var updateDialogVisible = false
+    private var updateCheckJob: Job? = null
+    private var lastSuccessfulUpdateCheck: Long? = null
     private val requestedUsbPermissions = mutableSetOf<String>()
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -193,20 +198,27 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // This only reads the public PGYER download page. Installation happens
-        // there after the user explicitly chooses to continue.
-        checkForUpdate(userInitiated = false)
     }
 
     private fun checkForUpdate(userInitiated: Boolean) {
-        lifecycleScope.launch {
+        if (updateDialogVisible) return
+        if (updateCheckJob?.isActive == true) {
+            if (userInitiated) Toast.makeText(this, "正在检查更新…", Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Check on launch and return to foreground. Successful checks are
+        // throttled for five minutes; failures can retry on the next resume.
+        val lastCheck = lastSuccessfulUpdateCheck
+        if (!userInitiated && lastCheck != null && SystemClock.elapsedRealtime() - lastCheck < 5 * 60_000L) return
+        updateCheckJob = lifecycleScope.launch {
             updateManager.checkForUpdate().onSuccess { release ->
+                lastSuccessfulUpdateCheck = SystemClock.elapsedRealtime()
                 if (release == null) {
                     if (userInitiated) {
                         Toast.makeText(this@MainActivity, "已经是最新版本", Toast.LENGTH_SHORT).show()
                     }
                 } else if (!updateDialogVisible) {
-                    showUpdateDialog(release)
+                    lifecycle.withResumed { showUpdateDialog(release) }
                 }
             }.onFailure { error ->
                 Timber.w(error, "Failed to check for PGYER update")
@@ -239,6 +251,7 @@ class MainActivity : ComponentActivity() {
         viewModel.refreshData()
         // Check if printer needs reconnection (e.g., after app restart)
         checkAndAutoConnectUsbPrinter()
+        checkForUpdate(userInitiated = false)
     }
 
     private fun checkAndRequestPermissions() {
