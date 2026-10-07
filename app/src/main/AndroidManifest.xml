@@ -23,10 +23,12 @@
 
     <!-- Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 
     <!-- Wake Lock for printing -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Notification -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -139,7 +141,7 @@
             android:name=".service.PrintJobService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="connectedDevice" />
 
         <!--
             System print integration. This is deliberately separate from
@@ -148,6 +150,7 @@
         -->
         <service
             android:name=".service.CPrintPrintService"
+            android:foregroundServiceType="connectedDevice"
             android:enabled="true"
             android:exported="true"
             android:label="@string/cprint_print_service_name"
@@ -165,6 +168,15 @@
             android:name=".service.UsbConnectionService"
             android:enabled="true"
             android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
 
         <!-- Print Document Provider -->
         <provider

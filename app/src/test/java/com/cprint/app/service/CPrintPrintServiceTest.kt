@@ -30,12 +30,15 @@ class CPrintPrintServiceTest {
     private lateinit var service: CPrintPrintService
     private lateinit var job: PrintJob
     private lateinit var usb: UsbPrintRepository
+    private lateinit var protection: AutoCloseable
 
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)
         service = CPrintPrintService()
         usb = mock()
         service.usbPrintRepository = usb
+        protection = mock()
+        service.executionGuard = mock { on { acquire(any(), any()) } doReturn protection }
         // Reproduce the framework's thread checks on every PrintJob accessor,
         // including the failure-reporting path that previously also crashed.
         job = mock(defaultAnswer = { invocation ->
@@ -72,6 +75,8 @@ class CPrintPrintServiceTest {
 
         verify(job).start()
         verify(job).fail("The system print document is unavailable")
+        verify(service.executionGuard).acquire(service, 1002)
+        verify(protection).close()
         verify(job, never()).complete()
         verifyNoInteractions(usb)
     }
@@ -81,6 +86,7 @@ class CPrintPrintServiceTest {
         dispatchCallback("onPrintJobQueued")
         dispatcher.scheduler.advanceUntilIdle()
 
+        verifyNoInteractions(service.executionGuard)
         verify(job, never()).document
         verify(job, never()).fail(any())
     }

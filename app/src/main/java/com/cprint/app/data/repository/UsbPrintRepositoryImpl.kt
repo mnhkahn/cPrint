@@ -62,7 +62,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
     private val _printProgress = MutableStateFlow(0)
     override fun getPrintProgress(): Flow<Int> = _printProgress.asStateFlow()
 
-    private var isCancelled = false
+    @Volatile private var isCancelled = false
 
     fun isConnectedTo(device: UsbDevice): Boolean =
         currentDevice?.deviceName == device.deviceName &&
@@ -187,6 +187,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 _printProgress.value = 100
                 Timber.d("Print job sent successfully")
                 Result.success(Unit)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Timber.e(e, "Failed to send print job: ${e.message}")
                 Result.failure(e)

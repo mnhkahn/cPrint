@@ -29,8 +29,8 @@ android {
         versionCode = releaseVersion?.let(::versionCodeFor) ?: 5
         versionName = releaseVersion ?: "1.0.5"
 
-        // Public download page only. The API key remains exclusively in CI.
-        buildConfigField("String", "PGYER_DOWNLOAD_PAGE", "\"https://www.pgyer.com/dayinxiaobangshou\"")
+        // The backend keeps PGYER credentials and signs short-lived download URLs.
+        buildConfigField("String", "APP_UPDATE_URL", "\"https://www.cyeam.com/api/apps/cprint/update\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -69,6 +69,9 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
     lint {
         checkReleaseBuilds = false

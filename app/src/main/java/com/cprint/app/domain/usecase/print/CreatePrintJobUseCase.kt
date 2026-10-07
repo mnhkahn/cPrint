@@ -63,6 +63,11 @@ class CreatePrintJobUseCase @Inject constructor(
                 printJobRepository.failJob(job.id, error?.message ?: "Print failed")
                 Result.failure(error ?: Exception("Print failed"))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                printJobRepository.cancelJob(job.id)
+            }
+            throw e
         } catch (e: Exception) {
             Timber.e(e, "CreatePrintJobUseCase: Exception during print")
             printJobRepository.failJob(job.id, e.message ?: "Unknown error")

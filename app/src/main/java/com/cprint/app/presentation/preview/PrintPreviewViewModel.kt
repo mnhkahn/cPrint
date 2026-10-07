@@ -1,5 +1,8 @@
 package com.cprint.app.presentation.preview
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.cprint.app.service.PrintJobService
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
@@ -8,8 +11,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.usecase.document.OpenDocumentUseCase
-import com.cprint.app.domain.usecase.print.CancelPrintJobUseCase
-import com.cprint.app.domain.usecase.print.CreatePrintJobUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,8 +28,7 @@ import javax.inject.Inject
 @HiltViewModel
 class PrintPreviewViewModel @Inject constructor(
     private val openDocumentUseCase: OpenDocumentUseCase,
-    private val createPrintJobUseCase: CreatePrintJobUseCase,
-    private val cancelPrintJobUseCase: CancelPrintJobUseCase
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<PrintPreviewUiState>(PrintPreviewUiState.Loading)
@@ -142,8 +142,7 @@ class PrintPreviewViewModel @Inject constructor(
     }
 
     fun print(documentName: String, documentUri: String, documentType: String, pageCount: Int) {
-        // Cancel any existing print job
-        currentPrintJob?.cancel()
+        if (_isPrinting.value) return
 
         currentPrintJob = viewModelScope.launch {
             try {
@@ -168,7 +167,8 @@ class PrintPreviewViewModel @Inject constructor(
                     }
                 }
 
-                val result = createPrintJobUseCase(
+                val result = PrintJobService.print(
+                    context = context,
                     documentName = documentName,
                     documentUri = documentUri,
                     documentType = documentType,
@@ -213,6 +213,7 @@ class PrintPreviewViewModel @Inject constructor(
     fun cancelPrint() {
         viewModelScope.launch {
             Timber.d("Cancelling print job")
+            PrintJobService.cancel(context)
             currentPrintJob?.cancel()
             _isPrinting.value = false
             _printProgress.value = 0

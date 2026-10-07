@@ -1,227 +1,142 @@
 package com.cprint.app.service
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipData
+import android.net.Uri
 import android.content.Context
 import android.content.Intent
-import android.os.Binder
-import android.os.Build
+import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
-import com.cprint.app.R
-import com.cprint.app.domain.model.PrintJob
+import android.os.Looper
+import android.os.ResultReceiver
 import com.cprint.app.domain.model.PrintSettings
-import com.cprint.app.domain.usecase.print.CancelPrintJobUseCase
+import com.cprint.app.domain.repository.UsbPrintRepository
 import com.cprint.app.domain.usecase.print.CreatePrintJobUseCase
-import com.cprint.app.presentation.queue.PrintQueueActivity
+import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import timber.log.Timber
+import kotlinx.coroutines.*
 import javax.inject.Inject
 
-/**
- * Foreground service for handling print jobs
- */
+/** Owns preview print jobs independently of the Activity/ViewModel lifecycle. */
 @AndroidEntryPoint
 class PrintJobService : Service() {
+    @Inject lateinit var createPrintJobUseCase: CreatePrintJobUseCase
+    @Inject lateinit var usbPrintRepository: UsbPrintRepository
+    @Inject lateinit var executionGuard: PrintExecutionGuard
 
-    @Inject
-    lateinit var createPrintJobUseCase: CreatePrintJobUseCase
-
-    @Inject
-    lateinit var cancelPrintJobUseCase: CancelPrintJobUseCase
-
-    private val binder = LocalBinder()
-    private var currentPrintJob: PrintJob? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var printJob: Job? = null
+    private var protection: AutoCloseable? = null
 
-    inner class LocalBinder : Binder() {
-        fun getService(): PrintJobService = this@PrintJobService
-    }
-
-    override fun onBind(intent: Intent): IBinder = binder
-
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannel()
-        Timber.d("PrintJobService created")
-    }
+    override fun onBind(intent: Intent): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START_PRINT -> {
-                val documentName = intent.getStringExtra(EXTRA_DOCUMENT_NAME) ?: return START_NOT_STICKY
-                val documentUri = intent.getStringExtra(EXTRA_DOCUMENT_URI) ?: return START_NOT_STICKY
-                val documentType = intent.getStringExtra(EXTRA_DOCUMENT_TYPE) ?: return START_NOT_STICKY
-                val totalPages = intent.getIntExtra(EXTRA_TOTAL_PAGES, 1)
-                val copies = intent.getIntExtra(EXTRA_COPIES, 1)
-
-                startPrintJob(documentName, documentUri, documentType, totalPages, copies)
+        if (intent?.action == ACTION_CANCEL_PRINT) {
+            if (printJob != null) {
+                scope.launch { usbPrintRepository.cancelPrint() }
+                printJob?.cancel()
+            } else {
+                stopSelf(startId)
             }
-            ACTION_CANCEL_PRINT -> {
-                cancelCurrentPrint()
-            }
+            return START_NOT_STICKY
         }
-
+        @Suppress("DEPRECATION")
+        val receiver = intent?.getParcelableExtra<ResultReceiver>(EXTRA_RESULT)
+        if (printJob != null) {
+            receiver?.send(1, Bundle().apply { putString("error", "已有打印任务正在执行") })
+            return START_NOT_STICKY
+        }
+        try {
+            protection = executionGuard.acquire(this, 1001)
+            requireNotNull(intent)
+            val name = requireNotNull(intent.getStringExtra(EXTRA_DOCUMENT_NAME))
+            val uri = requireNotNull(intent.getStringExtra(EXTRA_DOCUMENT_URI))
+            val type = requireNotNull(intent.getStringExtra(EXTRA_DOCUMENT_TYPE))
+            val settings = intent.getStringExtra(EXTRA_SETTINGS)?.let {
+                Gson().fromJson(it, PrintSettings::class.java)
+            } ?: PrintSettings(copies = intent.getIntExtra(EXTRA_COPIES, 1))
+            val pages = intent.getIntExtra(EXTRA_TOTAL_PAGES, 1)
+            printJob = scope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        createPrintJobUseCase(name, uri, type, pages, settings)
+                    }
+                    receiver?.send(if (result.isSuccess) 0 else 1, Bundle().apply {
+                        putString("error", result.exceptionOrNull()?.message)
+                    })
+                } catch (error: CancellationException) {
+                    receiver?.send(1, Bundle().apply { putString("error", "打印已取消") })
+                    throw error
+                } catch (error: Exception) {
+                    receiver?.send(1, Bundle().apply { putString("error", error.message) })
+                } finally {
+                    protection?.close()
+                    protection = null
+                    printJob = null
+                    stopSelf()
+                }
+            }
+        } catch (error: Exception) {
+            receiver?.send(1, Bundle().apply { putString("error", error.message) })
+            protection?.close()
+            protection = null
+            stopSelf()
+        }
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        scope.cancel()
+        protection?.close()
+        protection = null
         super.onDestroy()
-        printJob?.cancel()
-        Timber.d("PrintJobService destroyed")
-    }
-
-    private fun startPrintJob(
-        documentName: String,
-        documentUri: String,
-        documentType: String,
-        totalPages: Int,
-        copies: Int
-    ) {
-        val settings = PrintSettings(copies = copies)
-
-        startForeground(NOTIFICATION_ID, createNotification(documentName, 0))
-
-        printJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val result = createPrintJobUseCase(
-                    documentName = documentName,
-                    documentUri = documentUri,
-                    documentType = documentType,
-                    totalPages = totalPages,
-                    settings = settings
-                )
-
-                if (result.isSuccess) {
-                    Timber.d("Print job completed successfully")
-                    updateNotification(documentName, 100, true)
-                } else {
-                    Timber.e(result.exceptionOrNull(), "Print job failed")
-                    updateNotification(documentName, 0, false, result.exceptionOrNull()?.message)
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Print job error")
-                updateNotification(documentName, 0, false, e.message)
-            } finally {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-        }
-    }
-
-    private fun cancelCurrentPrint() {
-        currentPrintJob?.let { job ->
-            CoroutineScope(Dispatchers.IO).launch {
-                cancelPrintJobUseCase(job.id)
-            }
-        }
-        printJob?.cancel()
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.print_service_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = getString(R.string.print_service_channel_description)
-            }
-
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
-    private fun createNotification(documentName: String, progress: Int): android.app.Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, PrintQueueActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val cancelIntent = PendingIntent.getService(
-            this,
-            0,
-            Intent(this, PrintJobService::class.java).apply {
-                action = ACTION_CANCEL_PRINT
-            },
-            PendingIntent.FLAG_IMMUTABLE
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.printing_document, documentName))
-            .setContentText(getString(R.string.print_in_progress))
-            .setSmallIcon(R.drawable.ic_print)
-            .setProgress(100, progress, false)
-            .setContentIntent(pendingIntent)
-            .addAction(R.drawable.ic_cancel, getString(R.string.cancel), cancelIntent)
-            .setOngoing(true)
-            .build()
-    }
-
-    private fun updateNotification(
-        documentName: String,
-        progress: Int,
-        success: Boolean,
-        errorMessage: String? = null
-    ) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(documentName)
-            .setSmallIcon(R.drawable.ic_print)
-            .setProgress(0, 0, false)
-
-        if (success) {
-            builder.setContentText(getString(R.string.print_completed))
-                .setOngoing(false)
-        } else {
-            builder.setContentText(errorMessage ?: getString(R.string.print_failed))
-                .setOngoing(false)
-        }
-
-        notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
 
     companion object {
-        private const val CHANNEL_ID = "print_service_channel"
-        private const val NOTIFICATION_ID = 1001
-
         const val ACTION_START_PRINT = "com.cprint.app.ACTION_START_PRINT"
         const val ACTION_CANCEL_PRINT = "com.cprint.app.ACTION_CANCEL_PRINT"
-
         const val EXTRA_DOCUMENT_NAME = "document_name"
         const val EXTRA_DOCUMENT_URI = "document_uri"
         const val EXTRA_DOCUMENT_TYPE = "document_type"
         const val EXTRA_TOTAL_PAGES = "total_pages"
         const val EXTRA_COPIES = "copies"
+        const val EXTRA_SETTINGS = "settings"
+        const val EXTRA_RESULT = "result"
 
-        fun startPrint(
-            context: Context,
-            documentName: String,
-            documentUri: String,
-            documentType: String,
-            totalPages: Int,
-            copies: Int = 1
-        ) {
-            val intent = Intent(context, PrintJobService::class.java).apply {
-                action = ACTION_START_PRINT
-                putExtra(EXTRA_DOCUMENT_NAME, documentName)
-                putExtra(EXTRA_DOCUMENT_URI, documentUri)
-                putExtra(EXTRA_DOCUMENT_TYPE, documentType)
-                putExtra(EXTRA_TOTAL_PAGES, totalPages)
-                putExtra(EXTRA_COPIES, copies)
+        suspend fun print(context: Context, documentName: String, documentUri: String,
+                          documentType: String, totalPages: Int, settings: PrintSettings): Result<Unit> =
+            suspendCancellableCoroutine { continuation ->
+                val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
+                    override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+                        if (continuation.isActive) continuation.resumeWith(Result.success(
+                            if (resultCode == 0) Result.success(Unit)
+                            else Result.failure(IllegalStateException(resultData?.getString("error") ?: "打印失败"))
+                        ))
+                    }
+                }
+                try {
+                    context.startForegroundService(Intent(context, PrintJobService::class.java).apply {
+                        action = ACTION_START_PRINT
+                        clipData = ClipData.newRawUri(documentName, Uri.parse(documentUri))
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        putExtra(EXTRA_DOCUMENT_NAME, documentName)
+                        putExtra(EXTRA_DOCUMENT_URI, documentUri)
+                        putExtra(EXTRA_DOCUMENT_TYPE, documentType)
+                        putExtra(EXTRA_TOTAL_PAGES, totalPages)
+                        putExtra(EXTRA_SETTINGS, Gson().toJson(settings))
+                        putExtra(EXTRA_RESULT, receiver)
+                    })
+                } catch (error: Exception) {
+                    continuation.resumeWith(Result.success(Result.failure(error)))
+                }
+                // Losing a UI observer must not cancel the service-owned print job.
             }
-            context.startForegroundService(intent)
+
+        fun cancel(context: Context) {
+            context.startService(Intent(context, PrintJobService::class.java).apply {
+                action = ACTION_CANCEL_PRINT
+            })
         }
     }
 }

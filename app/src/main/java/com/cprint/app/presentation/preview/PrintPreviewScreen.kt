@@ -237,7 +237,7 @@ private fun PdfPageViewer(
             throw error
         } catch (error: Exception) {
             Timber.e(error, "Unable to open PDF preview")
-            loadError = "无法打开 PDF，文件可能已失效、加密或损坏。请重试或重新选择文件。"
+            loadError = previewErrorMessage(error)
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { openedDocument?.close() }
         }

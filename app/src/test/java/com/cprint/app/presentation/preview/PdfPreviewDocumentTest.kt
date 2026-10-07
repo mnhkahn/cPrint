@@ -1,6 +1,8 @@
 package com.cprint.app.presentation.preview
 
 import android.app.Application
+import android.content.Context
+import android.content.ContentResolver
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -12,6 +14,12 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mockConstruction
+import org.mockito.Mockito.mockStatic
+import android.system.Os
+import android.system.OsConstants
+import android.system.ErrnoException
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -30,6 +38,57 @@ class PdfPreviewDocumentTest {
     @After fun closeMockedDescriptors() {
         // A mocked PdfRenderer does not assume descriptor ownership like Android does.
         descriptors.forEach { it.close() }
+    }
+
+    @Test fun `uses same descriptor as printing without opening provider stream or copying file`() {
+        val source = File.createTempFile("source-", ".pdf", context.cacheDir)
+        source.writeText("%PDF-direct-fixture")
+        val descriptor = ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY)
+        val resolver = mock<ContentResolver>()
+        val providerContext = mock<Context>()
+        whenever(providerContext.contentResolver).thenReturn(resolver)
+        whenever(resolver.openFileDescriptor(uri, "r")).thenReturn(descriptor)
+        mockConstruction(PdfRenderer::class.java) { renderer, invocation ->
+            assertSame(descriptor, invocation.arguments()[0])
+            descriptors.add(descriptor)
+            whenever(renderer.pageCount).thenReturn(1)
+        }.use { renderers ->
+            PdfPreviewDocument.open(providerContext, uri).use { document ->
+                assertEquals(1, document.pageCount)
+                verify(resolver, never()).openInputStream(uri)
+                verify(providerContext, never()).cacheDir
+            }
+            verify(renderers.constructed().single()).close()
+            assertTrue(source.exists()) // Closing preview must not delete the original.
+        }
+        source.delete()
+    }
+
+    @Test fun `nonseekable descriptor is copied without reopening provider`() {
+        val source = File.createTempFile("source-", ".pdf", context.cacheDir)
+        val bytes = "%PDF-pipe-fixture".toByteArray()
+        source.writeBytes(bytes)
+        val descriptor = ParcelFileDescriptor.open(source, ParcelFileDescriptor.MODE_READ_ONLY)
+        val resolver = mock<ContentResolver>()
+        val providerContext = mock<Context>()
+        whenever(providerContext.contentResolver).thenReturn(resolver)
+        whenever(providerContext.cacheDir).thenReturn(context.cacheDir)
+        whenever(resolver.openFileDescriptor(uri, "r")).thenReturn(descriptor)
+        mockStatic(Os::class.java).use { os ->
+            os.`when`<Long> { Os.lseek(descriptor.fileDescriptor, 0, OsConstants.SEEK_SET) }
+                .thenThrow(ErrnoException("lseek", OsConstants.ESPIPE))
+            mockConstruction(PdfRenderer::class.java) { renderer, invocation ->
+                descriptors.add(invocation.arguments()[0] as ParcelFileDescriptor)
+                whenever(renderer.pageCount).thenReturn(1)
+            }.use {
+                PdfPreviewDocument.open(providerContext, uri).use {
+                    assertArrayEquals(bytes, cachedFiles().single().readBytes())
+                    verify(resolver, never()).openInputStream(uri)
+                }
+                assertTrue(cachedFiles().isEmpty())
+            }
+        }
+        source.delete()
     }
 
     @Test fun `copies stream sources to a seekable file and deletes cache on close`() {

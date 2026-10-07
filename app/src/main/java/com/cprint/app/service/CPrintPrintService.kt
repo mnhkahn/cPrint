@@ -55,6 +55,7 @@ class CPrintPrintService : PrintService() {
 
     @Inject lateinit var createPrintJob: CreatePrintJobUseCase
     @Inject lateinit var usbPrintRepository: UsbPrintRepository
+    @Inject lateinit var executionGuard: PrintExecutionGuard
 
     // PrintJob and PrintDocument enforce main-thread access, even for getters.
     // Only file/PDF work and the USB pipeline may run on IO.
@@ -113,9 +114,11 @@ class CPrintPrintService : PrintService() {
 
     private suspend fun processPrintJob(systemJob: PrintJob) {
         var cachedPdf: File? = null
+        var protection: AutoCloseable? = null
         try {
             if (!systemJob.isQueued || !systemJob.start()) return
 
+            protection = executionGuard.acquire(this, 1002)
             val info = systemJob.info
             // Obtain the descriptor on Main, but consume its pipe on IO.
             val data = checkNotNull(systemJob.document.data) { "The system print document is unavailable" }
@@ -172,6 +175,7 @@ class CPrintPrintService : PrintService() {
             }
         } finally {
             cachedPdf?.delete()
+            protection?.close()
         }
     }
 
