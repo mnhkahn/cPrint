@@ -21,6 +21,16 @@ class CreatePrintJobUseCase @Inject constructor(
         totalPages: Int,
         settings: PrintSettings
     ): Result<PrintJob> {
+        val lease = com.cprint.app.data.repository.ImportedDocumentStore.retain(documentUri)
+        return try {
+            execute(documentName, documentUri, documentType, totalPages, settings)
+        } finally {
+            lease.close()
+        }
+    }
+
+    private suspend fun execute(documentName: String, documentUri: String, documentType: String,
+                                totalPages: Int, settings: PrintSettings): Result<PrintJob> {
         Timber.d("CreatePrintJobUseCase: Creating print job for $documentName")
 
         val job = PrintJob(

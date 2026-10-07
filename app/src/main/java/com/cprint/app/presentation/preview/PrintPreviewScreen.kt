@@ -86,7 +86,8 @@ import timber.log.Timber
 fun PrintPreviewScreen(
     viewModel: PrintPreviewViewModel,
     onBackClick: () -> Unit,
-    onPrintClick: () -> Unit
+    onPrintClick: () -> Unit,
+    onSelectDocument: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentPage by viewModel.currentPage.collectAsState()
@@ -121,7 +122,8 @@ fun PrintPreviewScreen(
                 totalPages = totalPages,
                 onPreviousPage = { viewModel.goToPreviousPage() },
                 onNextPage = { viewModel.goToNextPage() },
-                onPrintClick = onPrintClick
+                onPrintClick = onPrintClick,
+                canPrint = uiState is PrintPreviewUiState.Success && !isPrinting
             )
         }
     ) { paddingValues ->
@@ -137,7 +139,7 @@ fun PrintPreviewScreen(
                     )
                 }
                 is PrintPreviewUiState.Error -> {
-                    ErrorView(message = state.message)
+                    ErrorView(message = state.message, onSelectDocument = onSelectDocument)
                 }
                 is PrintPreviewUiState.Success -> {
                     PreviewContent(
@@ -498,7 +500,8 @@ private fun PreviewBottomBar(
     totalPages: Int,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
-    onPrintClick: () -> Unit
+    onPrintClick: () -> Unit,
+    canPrint: Boolean
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -541,7 +544,8 @@ private fun PreviewBottomBar(
 
             // Print button
             Button(
-                onClick = onPrintClick
+                onClick = onPrintClick,
+                enabled = canPrint
             ) {
                 Icon(
                     imageVector = Icons.Default.Print,
@@ -556,7 +560,7 @@ private fun PreviewBottomBar(
 }
 
 @Composable
-private fun ErrorView(message: String) {
+private fun ErrorView(message: String, onSelectDocument: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -578,6 +582,8 @@ private fun ErrorView(message: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onSelectDocument) { Text("重新选择文件") }
     }
 }
 

@@ -199,6 +199,12 @@ private fun MainContent(
             )
         }
 
+        item {
+            Text("打开或预览不会计为打印；打印任务请查看右上角的打印历史。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
         if (recentDocuments.isEmpty()) {
             item {
                 EmptyDocumentsView()

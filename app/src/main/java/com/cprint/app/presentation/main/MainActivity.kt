@@ -287,7 +287,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleSelectedDocument(uri: Uri) {
-        viewModel.openDocument(uri)
         openPrintPreview(uri.toString())
     }
 

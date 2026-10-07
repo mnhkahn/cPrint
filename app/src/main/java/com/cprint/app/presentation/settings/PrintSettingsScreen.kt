@@ -53,28 +53,27 @@ fun PrintSettingsScreen(
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val state = uiState) {
-                is PrintSettingsUiState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-                is PrintSettingsUiState.NoPrinter -> {
-                    NoPrinterView()
-                }
-                is PrintSettingsUiState.Success -> {
-                    SettingsContent(
-                        printerName = state.printerName,
-                        isPrinterConnected = state.isPrinterConnected,
-                        settings = printSettings,
-                        viewModel = viewModel,
-                        onSettingsChange = { viewModel.updateSettings(it) }
-                    )
+        Column(Modifier.fillMaxSize().padding(paddingValues)) {
+            DocumentStorageCard()
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                when (val state = uiState) {
+                    is PrintSettingsUiState.Loading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    is PrintSettingsUiState.NoPrinter -> {
+                        NoPrinterView()
+                    }
+                    is PrintSettingsUiState.Success -> {
+                        SettingsContent(
+                            printerName = state.printerName,
+                            isPrinterConnected = state.isPrinterConnected,
+                            settings = printSettings,
+                            viewModel = viewModel,
+                            onSettingsChange = { viewModel.updateSettings(it) }
+                        )
+                    }
                 }
             }
         }

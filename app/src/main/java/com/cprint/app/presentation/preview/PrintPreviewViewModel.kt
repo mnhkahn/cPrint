@@ -12,13 +12,11 @@ import androidx.lifecycle.viewModelScope
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.usecase.document.OpenDocumentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -55,40 +53,45 @@ class PrintPreviewViewModel @Inject constructor(
 
     private var currentPrintJob: kotlinx.coroutines.Job? = null
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+    private var documentLease: AutoCloseable? = null
+
     private var pdfRenderer: PdfRenderer? = null
     private var parcelFileDescriptor: ParcelFileDescriptor? = null
 
     fun loadDocument(uriString: String) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             try {
+                documentLease?.close()
+                documentLease = null
                 _uiState.value = PrintPreviewUiState.Loading
+                _currentPage.value = 0
+                _totalPages.value = 0
 
                 val uri = Uri.parse(uriString)
                 val result = openDocumentUseCase(uri)
 
                 if (result.isSuccess) {
                     val document = result.getOrThrow()
+                    documentLease = com.cprint.app.data.repository.ImportedDocumentStore.retain(document.uri)
                     _totalPages.value = document.pageCount
-
-                    // Load PDF renderer
-                    withContext(Dispatchers.IO) {
-                        loadPdfRenderer(uri)
-                    }
 
                     _uiState.value = PrintPreviewUiState.Success(
                         documentName = document.name,
-                        documentUri = uriString,
+                        documentUri = document.uri,
                         documentType = document.type,
                         pageCount = document.pageCount
                     )
                 } else {
                     _uiState.value = PrintPreviewUiState.Error(
-                        result.exceptionOrNull()?.message ?: "Failed to load document"
+                        previewErrorMessage(result.exceptionOrNull() ?: IllegalStateException("无法打开文档"))
                     )
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Error loading document")
-                _uiState.value = PrintPreviewUiState.Error(e.message ?: "Unknown error")
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                _uiState.value = PrintPreviewUiState.Error(previewErrorMessage(e))
             }
         }
     }
@@ -232,6 +235,7 @@ class PrintPreviewViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        documentLease?.close()
         pdfRenderer?.close()
         parcelFileDescriptor?.close()
     }

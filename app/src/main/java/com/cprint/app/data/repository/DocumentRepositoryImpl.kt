@@ -70,42 +70,38 @@ class DocumentRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun openDocument(uri: Uri): Result<RecentDocument> {
-        return try {
-            val existingDoc = recentDocumentDao.getDocumentByUri(uri.toString())
-
-            if (existingDoc != null) {
-                // Update access time
-                recentDocumentDao.updateAccessTime(existingDoc.id, Date().time)
-                Result.success(existingDoc.toDomainModel())
-            } else {
-                // Create new document entry
-                val docInfo = getDocumentInfo(uri).getOrNull()
-                    ?: return Result.failure(IllegalArgumentException("Cannot read document"))
-
-                val pageCount = if (docInfo.type == "application/pdf") {
-                    getPdfPageCount(uri).getOrDefault(1)
-                } else {
-                    1
-                }
-
-                val document = RecentDocumentEntity(
-                    id = UUID.randomUUID().toString(),
-                    name = docInfo.name,
-                    uri = docInfo.uri,
-                    type = docInfo.type,
-                    size = docInfo.size,
-                    pageCount = pageCount,
-                    thumbnailUri = null,
-                    lastOpenedAt = Date(),
-                    openCount = 1
-                )
-
-                recentDocumentDao.insertDocument(document)
-                Result.success(document.toDomainModel())
+    override suspend fun openDocument(uri: Uri): Result<RecentDocument> = withContext(Dispatchers.IO) {
+        try {
+            val store = ImportedDocumentStore(context)
+            val existing = recentDocumentDao.getDocumentByUri(uri.toString())
+            if (store.isImported(uri)) {
+                // Validate even existing records, so missing files have a recovery UI.
+                checkNotNull(context.contentResolver.openFileDescriptor(uri, "r")) { "文件不存在，请重新选择" }.close()
+                val saved = checkNotNull(existing) { "文档记录不存在，请重新选择文件" }
+                recentDocumentDao.updateAccessTime(saved.id, Date().time)
+                return@withContext Result.success(saved.toDomainModel())
             }
-        } catch (e: Exception) {
-            Result.failure(e)
+            val info = getDocumentInfo(uri).getOrThrow()
+            val savedUri = if (store.hasPersistentReadAccess(uri)) uri else store.import(uri)
+            val previous = existing ?: recentDocumentDao.getDocumentByUri(savedUri.toString())
+            val pages = if (info.type == "application/pdf") getPdfPageCount(savedUri).getOrThrow() else 1
+            val document = RecentDocumentEntity(
+                id = previous?.id ?: UUID.randomUUID().toString(),
+                name = info.name,
+                uri = savedUri.toString(),
+                type = info.type,
+                size = context.contentResolver.openFileDescriptor(savedUri, "r")!!.use { it.statSize },
+                pageCount = pages,
+                thumbnailUri = previous?.thumbnailUri,
+                lastOpenedAt = Date(),
+                openCount = (previous?.openCount ?: 0) + 1
+            )
+            recentDocumentDao.insertDocument(document)
+            Result.success(document.toDomainModel())
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
 

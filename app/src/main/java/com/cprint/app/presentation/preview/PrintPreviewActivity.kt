@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,18 @@ import timber.log.Timber
 class PrintPreviewActivity : ComponentActivity() {
 
     private val viewModel: PrintPreviewViewModel by viewModels()
+
+    private val reselectDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (error: SecurityException) {
+                Timber.d(error, "Provider only grants temporary access; document will be imported")
+            }
+            intent.putExtra(EXTRA_DOCUMENT_URI, uri.toString())
+            viewModel.loadDocument(uri.toString())
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,6 +97,7 @@ class PrintPreviewActivity : ComponentActivity() {
                     PrintPreviewScreen(
                         viewModel = viewModel,
                         onBackClick = { finish() },
+                        onSelectDocument = { reselectDocument.launch(arrayOf("application/pdf", "image/*")) },
                         onPrintClick = {
                             val state = uiState
                             if (state is PrintPreviewUiState.Success) {

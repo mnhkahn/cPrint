@@ -16,9 +16,9 @@
     <!-- Main Screen -->
     <string name="printer_ready">Printer Ready</string>
     <string name="printer_not_connected">No Printer Connected</string>
-    <string name="recent_documents">Recent Documents</string>
+    <string name="recent_documents">最近打开的文件</string>
     <string name="add_document">Add Document</string>
-    <string name="no_recent_documents">No Recent Documents</string>
+    <string name="no_recent_documents">暂无最近打开的文件</string>
     <string name="tap_plus_to_add">Tap + to add a document</string>
     <string name="pages">pages</string>
     <string name="permissions_required">Permissions Required</string>

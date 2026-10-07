@@ -1,5 +1,6 @@
 package com.cprint.app.data.model.entity
 
+import androidx.room.Index
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverters
@@ -10,7 +11,7 @@ import java.util.Date
 /**
  * Room entity for recent documents storage
  */
-@Entity(tableName = "recent_documents")
+@Entity(tableName = "recent_documents", indices = [Index(value = ["uri"], unique = true)])
 @TypeConverters(Converters::class)
 data class RecentDocumentEntity(
     @PrimaryKey
