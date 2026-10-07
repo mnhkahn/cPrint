@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
@@ -41,7 +40,8 @@ class MainViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<MainUiState>(MainUiState.Loading)
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
-    private val _permissionsGranted = MutableStateFlow(false)
+    private val connectionError = MutableStateFlow<String?>(null)
+    private val connected = MutableStateFlow(false)
 
     private val _driverTestStatus = MutableStateFlow<String?>(null)
     val driverTestStatus: StateFlow<String?> = _driverTestStatus.asStateFlow()
@@ -73,17 +73,15 @@ class MainViewModel @Inject constructor(
         combine(
             getConnectedPrinterUseCase(),
             getRecentDocumentsUseCase.withLimit(10),
-            _permissionsGranted
-        ) { printer, documents, permissionsGranted ->
-            if (permissionsGranted) {
-                MainUiState.Success(
-                    printer = printer,
-                    recentDocuments = documents,
-                    isPrinterConnected = printer?.status == com.cprint.app.domain.model.PrinterStatus.READY
-                )
-            } else {
-                MainUiState.PermissionsRequired
-            }
+            connectionError,
+            connected
+        ) { printer, documents, error, isConnected ->
+            MainUiState.Success(
+                printer = printer,
+                recentDocuments = documents,
+                isPrinterConnected = isConnected && printer?.status == com.cprint.app.domain.model.PrinterStatus.READY,
+                connectionError = error
+            )
         }
             .catch { error ->
                 Timber.e(error, "Error observing main data")
@@ -95,13 +93,13 @@ class MainViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    fun onPermissionsGranted() {
-        _permissionsGranted.value = true
-    }
+    // Optional media/notification permissions must not gate local browsing.
+    fun onPermissionsGranted() = Unit
+    fun onPermissionsDenied() = Unit
 
-    fun onPermissionsDenied() {
-        _permissionsGranted.value = false
-        _uiState.value = MainUiState.PermissionsRequired
+    fun onPrinterDisconnected() {
+        connected.value = false
+        connectionError.value = null
     }
 
     fun openDocument(uri: Uri) {
@@ -125,19 +123,19 @@ class MainViewModel @Inject constructor(
                 val result = printerRepository.connectPrinter(device)
                 if (result.isSuccess) {
                     Timber.d("MainViewModel: Printer connected successfully")
-                    _uiState.update { currentState ->
-                        if (currentState is MainUiState.Success) {
-                            currentState.copy(isPrinterConnected = true)
-                        } else currentState
-                    }
+                    connectionError.value = null
+                    connected.value = true
                 } else {
                     val error = result.exceptionOrNull()
                     Timber.e(error, "MainViewModel: Failed to connect printer")
-                    _uiState.value = MainUiState.Error(error?.message ?: "连接打印机失败")
+                    connected.value = false
+                    connectionError.value = error?.message ?: "连接打印机失败"
                 }
             } catch (e: Exception) {
                 Timber.e(e, "MainViewModel: Exception connecting to printer")
-                _uiState.value = MainUiState.Error(e.message ?: "连接打印机时发生错误")
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                connected.value = false
+                connectionError.value = e.message ?: "连接打印机时发生错误"
             }
         }
     }
@@ -152,7 +150,8 @@ sealed class MainUiState {
     data class Success(
         val printer: Printer?,
         val recentDocuments: List<RecentDocument>,
-        val isPrinterConnected: Boolean
+        val isPrinterConnected: Boolean,
+        val connectionError: String? = null
     ) : MainUiState()
     data class Error(val message: String) : MainUiState()
 }

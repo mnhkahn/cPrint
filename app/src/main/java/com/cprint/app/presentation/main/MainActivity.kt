@@ -96,6 +96,7 @@ class MainActivity : ComponentActivity() {
             Timber.d("MainActivity: Received broadcast - ${intent.action}")
             when (intent.action) {
                 UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                    viewModel.onPrinterDisconnected()
                     intent.usbDevice()?.let { requestedUsbPermissions.remove(it.deviceName) }
                 }
                 UsbDeviceReceiver.ACTION_USB_PERMISSION -> {
@@ -311,7 +312,8 @@ class MainActivity : ComponentActivity() {
     /** USB access is independent of storage and notification permissions. */
     private fun checkAndAutoConnectUsbPrinter() {
         val usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
-        usbManager.deviceList.values.firstOrNull { isPrinter(it) }?.let(::autoConnectUsbPrinter)
+        val device = usbManager.deviceList.values.firstOrNull { isPrinter(it) }
+        if (device == null) viewModel.onPrinterDisconnected() else autoConnectUsbPrinter(device)
     }
 
     private fun isPrinter(device: UsbDevice): Boolean =

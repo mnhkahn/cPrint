@@ -151,6 +151,7 @@ fun MainScreen(
                     MainContent(
                         printer = state.printer,
                         isPrinterConnected = state.isPrinterConnected,
+                        connectionError = state.connectionError,
                         recentDocuments = state.recentDocuments,
                         onDocumentSelected = onDocumentSelected
                     )
@@ -173,6 +174,7 @@ fun MainScreen(
 private fun MainContent(
     printer: com.cprint.app.domain.model.Printer?,
     isPrinterConnected: Boolean,
+    connectionError: String?,
     recentDocuments: List<RecentDocument>,
     onDocumentSelected: (RecentDocument) -> Unit
 ) {
@@ -184,7 +186,8 @@ private fun MainContent(
         item {
             PrinterStatusCard(
                 printer = printer,
-                isConnected = isPrinterConnected
+                isConnected = isPrinterConnected,
+                connectionError = connectionError
             )
         }
 
@@ -248,7 +251,8 @@ private fun DriverTestDialog(
 @Composable
 private fun PrinterStatusCard(
     printer: com.cprint.app.domain.model.Printer?,
-    isConnected: Boolean
+    isConnected: Boolean,
+    connectionError: String?
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -256,7 +260,7 @@ private fun PrinterStatusCard(
             containerColor = if (isConnected)
                 MaterialTheme.colorScheme.primaryContainer
             else
-                MaterialTheme.colorScheme.errorContainer
+                MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Row(
@@ -272,7 +276,7 @@ private fun PrinterStatusCard(
                 tint = if (isConnected)
                     MaterialTheme.colorScheme.onPrimaryContainer
                 else
-                    MaterialTheme.colorScheme.onErrorContainer
+                    MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -287,9 +291,17 @@ private fun PrinterStatusCard(
                     color = if (isConnected)
                         MaterialTheme.colorScheme.onPrimaryContainer
                     else
-                        MaterialTheme.colorScheme.onErrorContainer
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                if (!isConnected) {
+                    Text(
+                        text = connectionError?.let { "$it。请重新连接后再打印" }
+                            ?: "连接打印机后即可打印；仍可预览文件、查看历史和修改设置",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (printer != null && isConnected) {
                     Text(
                         text = printer.getDisplayName(),
