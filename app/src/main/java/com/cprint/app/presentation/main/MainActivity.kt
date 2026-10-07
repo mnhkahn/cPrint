@@ -292,13 +292,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openPrintPreview(documentUri: String) {
-        val intent = Intent(this, PrintPreviewActivity::class.java).apply {
-            data = Uri.parse(documentUri)
-            clipData = android.content.ClipData.newRawUri("print-document", data)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            putExtra(PrintPreviewActivity.EXTRA_DOCUMENT_URI, documentUri)
-        }
-        startActivity(intent)
+        startActivity(PrintPreviewActivity.createIntent(this, documentUri))
     }
 
     private fun openPrintSettings() {

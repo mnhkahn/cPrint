@@ -1,5 +1,6 @@
 package com.cprint.app.presentation.preview
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -102,5 +103,11 @@ class PrintPreviewActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_DOCUMENT_URI = "document_uri"
+
+        // Both activities run under the same UID. Re-granting an expired
+        // external URI makes startActivity throw before preview can show an error.
+        fun createIntent(context: Context, documentUri: String): Intent =
+            Intent(context, PrintPreviewActivity::class.java)
+                .putExtra(EXTRA_DOCUMENT_URI, documentUri)
     }
 }
