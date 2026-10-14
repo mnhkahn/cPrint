@@ -215,17 +215,28 @@ class CPrintPrintService : PrintService() {
 
     private inner class CPrintPrinterDiscoverySession : PrinterDiscoverySession() {
         override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
-            addPrinters(discoverPrinters())
+            addPrinters(discoverPrinters(priorityList))
         }
 
         override fun onStopPrinterDiscovery() = Unit
 
         override fun onValidatePrinters(printerIds: MutableList<PrinterId>) {
-            addPrinters(discoverPrinters().filter { it.id in printerIds })
+            updateRequestedPrinters(printerIds)
         }
 
         override fun onStartPrinterStateTracking(printerId: PrinterId) {
-            addPrinters(discoverPrinters().filter { it.id == printerId })
+            updateRequestedPrinters(listOf(printerId))
+        }
+
+        private fun updateRequestedPrinters(ids: List<PrinterId>) {
+            val available = discoverPrinters(ids).filter { it.id in ids }
+            val unavailable = ids.filter { id -> available.none { it.id == id } }.map { id ->
+                PrinterInfo.Builder(id, "USB printer", PrinterInfo.STATUS_UNAVAILABLE)
+                    .setDescription("Printer disconnected; reconnect USB")
+                    .setCapabilities(buildCapabilities(id))
+                    .build()
+            }
+            addPrinters(available + unavailable)
         }
 
         override fun onStopPrinterStateTracking(printerId: PrinterId) = Unit
@@ -235,16 +246,22 @@ class CPrintPrintService : PrintService() {
         }
     }
 
-    private fun discoverPrinters(): List<PrinterInfo> {
+    private fun discoverPrinters(requestedIds: List<PrinterId> = emptyList()): List<PrinterInfo> {
         val usbManager = getSystemService(USB_SERVICE) as UsbManager
-        return usbManager.deviceList.values
-            .filter(::isSupportedPrinter)
+        val devices = usbManager.deviceList.values.filter(::isSupportedPrinter)
+        return devices
             .map { device ->
-                val localId = "${device.vendorId}:${device.productId}:${device.deviceName}"
+                // USB bus paths change after reconnecting. The spooler persists
+                // this ID and may track it before starting discovery.
+                val baseId = "${device.vendorId}:${device.productId}"
+                val sameModelCount = devices.count {
+                    it.vendorId == device.vendorId && it.productId == device.productId
+                }
+                val localId = if (sameModelCount == 1) baseId else "$baseId:${device.deviceName}"
                 val printerId = printerIdByLocalId.getOrPut(localId) { generatePrinterId(localId) }
                 val model = KnownPrinters.findPrinter(device.vendorId, device.productId)
                 val name = model?.let { "${it.manufacturer} ${it.model}" }
-                    ?: (device.productName ?: "USB printer")
+                    ?: (runCatching { device.productName }.getOrNull() ?: "USB printer")
                 // A physically attached printer must remain selectable. Reporting it
                 // as STATUS_UNAVAILABLE when USB permission has not yet been
                 // granted makes Android render it in the list but disable taps,
@@ -253,6 +270,27 @@ class CPrintPrintService : PrintService() {
                     .setDescription(if (usbManager.hasPermission(device)) "Connected via USB" else "Open cPrint once to grant USB access")
                     .setCapabilities(buildCapabilities(printerId))
                     .build()
+            }.let { printers ->
+                // Keep IDs saved by older releases usable after a USB reconnect.
+                // Alias only when VID/PID identifies one attached printer.
+                val aliases = requestedIds.filter { requested -> printers.none { it.id == requested } }
+                    .mapNotNull { requested ->
+                        val prefix = requested.localId.split(":").take(2).joinToString(":")
+                        val match = printers.singleOrNull {
+                            it.id.localId.split(":").take(2).joinToString(":") == prefix
+                        } ?: return@mapNotNull null
+                        PrinterInfo.Builder(requested, match.name, match.status)
+                            .setDescription(match.description.orEmpty())
+                            .setCapabilities(buildCapabilities(requested))
+                            .build()
+                    }
+                // Do not list the same physical printer twice when migrating a
+                // favorite saved under the old bus-path ID.
+                printers.filter { printer ->
+                    aliases.none { alias ->
+                        alias.id.localId.substringBefore(":/") == printer.id.localId
+                    }
+                } + aliases
             }
     }
 

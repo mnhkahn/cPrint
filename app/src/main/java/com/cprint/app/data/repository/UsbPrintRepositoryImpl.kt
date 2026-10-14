@@ -28,6 +28,7 @@ import com.cprint.app.util.NativeUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -196,65 +197,27 @@ class UsbPrintRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun sendRawData(data: ByteArray): Result<Unit> {
-        android.util.Log.d("UsbPrintRepo", "sendRawData: ${data.size} bytes")
-        return withContext(Dispatchers.IO) {
-            try {
-                val connection = currentConnection
-                    ?: run {
-                        android.util.Log.e("UsbPrintRepo", "sendRawData: No USB connection!")
-                        return@withContext Result.failure(IllegalStateException("No USB connection"))
-                    }
-
-                val endpoint = bulkOutEndpoint
-                    ?: run {
-                        android.util.Log.e("UsbPrintRepo", "sendRawData: No output endpoint!")
-                        return@withContext Result.failure(IllegalStateException("No output endpoint"))
-                    }
-
-                android.util.Log.d("UsbPrintRepo", "Sending ${data.size} bytes via bulkTransfer...")
-                val bytesWritten = connection.bulkTransfer(
-                    endpoint,
-                    data,
-                    data.size,
-                    5000 // 5 second timeout
-                )
-
-                android.util.Log.d("UsbPrintRepo", "bulkTransfer result: $bytesWritten bytes written (expected: ${data.size})")
-
-                if (bytesWritten < 0) {
-                    android.util.Log.e("UsbPrintRepo", "USB bulk transfer failed with error code: $bytesWritten, attempting reconnect...")
-                    // Printer may be in error state (out of paper, etc.), try reconnect
-                    disconnect()
-                    val reconnected = tryAutoReconnect()
-                    if (reconnected && currentConnection != null) {
-                        android.util.Log.d("UsbPrintRepo", "Reconnected, retrying bulkTransfer...")
-                        val retryBytes = currentConnection!!.bulkTransfer(
-                            bulkOutEndpoint, data, data.size, 5000
-                        )
-                        android.util.Log.d("UsbPrintRepo", "Retry bulkTransfer result: $retryBytes")
-                        if (retryBytes > 0) {
-                            Result.success(Unit)
-                        } else {
-                            Result.failure(Exception("USB bulk transfer failed after reconnect: $retryBytes"))
-                        }
-                    } else {
-                        Result.failure(Exception("USB bulk transfer failed: $bytesWritten, reconnect failed"))
-                    }
-                } else if (bytesWritten == 0) {
-                    android.util.Log.e("UsbPrintRepo", "USB bulk transfer wrote 0 bytes!")
-                    Result.failure(Exception("USB bulk transfer wrote 0 bytes"))
-                } else if (bytesWritten < data.size) {
-                    android.util.Log.w("UsbPrintRepo", "USB bulk transfer partial write: $bytesWritten/${data.size} bytes")
-                    Result.success(Unit) // Partial success, continue
-                } else {
-                    android.util.Log.d("UsbPrintRepo", "USB bulk transfer successful: $bytesWritten bytes")
-                    Result.success(Unit)
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to send raw data")
-                Result.failure(e)
+    override suspend fun sendRawData(data: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val connection = checkNotNull(currentConnection) { "No USB connection" }
+            val endpoint = checkNotNull(bulkOutEndpoint) { "No output endpoint" }
+            var offset = 0
+            while (offset < data.size) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                check(!isCancelled) { "打印已取消" }
+                val remaining = data.size - offset
+                val written = connection.bulkTransfer(endpoint, data, offset, remaining, 5000)
+                // Never reconnect and replay a chunk in the middle of a driver
+                // stream: the device may already have consumed part of it.
+                check(written in 1..remaining) { "USB bulk transfer failed at $offset/${data.size}: $written" }
+                offset += written
             }
+            Result.success(Unit)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to send raw data")
+            Result.failure(e)
         }
     }
 
@@ -508,7 +471,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
             val result = driverOutput.bytes
             Timber.d("escpr driver prepared ${result.size} bytes for ${pagesToPrint.count()} pages; exit=${driverOutput.exitCode}")
             // Preserve the exact driver output for diagnosis on a debug build.
-            try {
+            if (com.cprint.app.BuildConfig.DEBUG) try {
                 val debugFile = java.io.File(context.getExternalFilesDir(null), "cprint_esc_data.bin")
                 debugFile.writeBytes(result)
                 android.util.Log.d("UsbPrintRepo", "escpr driver data dumped to: ${debugFile.absolutePath} (${result.size} bytes)")
@@ -516,6 +479,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 android.util.Log.e("UsbPrintRepo", "Failed to dump debug file: ${e.message}")
             }
             result
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             android.util.Log.e("UsbPrintRepo", "preparePdfData EXCEPTION: ${e.message}", e)
             Timber.e(e, "Failed to prepare PDF data: ${e.message}")

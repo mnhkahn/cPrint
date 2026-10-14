@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
+import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 
@@ -64,6 +65,7 @@ object PrintDriverEngine {
         printerModel: String = PRINTER_MODEL
     ): DriverOutput = withContext(Dispatchers.IO) {
         require(pageIndexes.isNotEmpty()) { "没有可打印的页面" }
+        require(pageIndexes.size <= 255) { "单次最多打印 255 页，请拆分打印" }
 
         val dpi = DPI
         val widthPx = (settings.paperSize.widthMm / 25.4f * dpi).toInt()
@@ -88,6 +90,8 @@ object PrintDriverEngine {
             "0", "0", "0"
         )
         val session = NativeDriver.start(so, argv)
+        // Batch RGB rows into fewer native pipe writes without changing DPI.
+        val pixelInput = BufferedOutputStream(session.stdin, 256 * 1024)
         val output = ByteArrayOutputStream()
         val stderr = StringBuilder()
         var readerFailure: Throwable? = null
@@ -99,9 +103,11 @@ object PrintDriverEngine {
                     val count = session.stdout.read(buffer)
                     if (count < 0) break
                     if (output.size() + count > MAX_DRIVER_OUTPUT_BYTES) {
-                        throw IllegalStateException("驱动输出超过 ${MAX_DRIVER_OUTPUT_BYTES / 1024 / 1024}MB")
+                        readerFailure = IllegalStateException("驱动输出超过 ${MAX_DRIVER_OUTPUT_BYTES / 1024 / 1024}MB")
                     }
-                    output.write(buffer, 0, count)
+                    // Keep draining even on overflow, or the native filter can
+                    // block before it reaches its exit status.
+                    if (readerFailure == null) output.write(buffer, 0, count)
                 }
             } catch (e: Throwable) {
                 readerFailure = e
@@ -109,12 +115,7 @@ object PrintDriverEngine {
         }.apply { name = "escpr-stdout"; start() }
         val stderrThread = Thread {
             try {
-                val buffer = ByteArray(4096)
-                while (stderr.length < 32 * 1024) {
-                    val count = session.stderr.read(buffer)
-                    if (count < 0) break
-                    stderr.append(String(buffer, 0, count, Charsets.UTF_8))
-                }
+                DriverDiagnostics.drain(session.stderr, stderr, 32 * 1024)
             } catch (_: Exception) {
                 // The driver exit status remains authoritative if stderr closes early.
             }
@@ -124,9 +125,7 @@ object PrintDriverEngine {
             context.contentResolver.openFileDescriptor(Uri.parse(documentUri), "r")?.use { pfd ->
                 PdfRenderer(pfd).use { renderer ->
                     require(pageIndexes.all { it in 0 until renderer.pageCount }) { "PDF 页码无效" }
-                    session.stdin.write(byteArrayOf(pageIndexes.size.toByte()))
-                    val rowPixels = IntArray(pageWidth)
-                    val rowBytes = ByteArray(pageWidth * 3)
+                    pixelInput.write(byteArrayOf(pageIndexes.size.toByte()))
                     pageIndexes.forEachIndexed { outputIndex, pageIndex ->
                         renderer.openPage(pageIndex).use { page ->
                             val bitmap = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
@@ -136,23 +135,14 @@ object PrintDriverEngine {
                                     setScale(pageWidth.toFloat() / page.width, pageHeight.toFloat() / page.height)
                                 }
                                 page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                                session.stdin.write(byteArrayOf(outputIndex.toByte()))
-                                for (y in 0 until pageHeight) {
-                                    bitmap.getPixels(rowPixels, 0, pageWidth, 0, y, pageWidth, 1)
-                                    var offset = 0
-                                    for (pixel in rowPixels) {
-                                        rowBytes[offset++] = ((pixel shr 16) and 0xff).toByte()
-                                        rowBytes[offset++] = ((pixel shr 8) and 0xff).toByte()
-                                        rowBytes[offset++] = (pixel and 0xff).toByte()
-                                    }
-                                    session.stdin.write(rowBytes)
-                                }
+                                pixelInput.write(byteArrayOf(outputIndex.toByte()))
+                                RgbBitmapWriter.write(bitmap, pixelInput)
                             } finally {
                                 bitmap.recycle()
                             }
                         }
                     }
-                    session.stdin.flush()
+                    pixelInput.flush()
                 }
             } ?: throw IllegalStateException("无法打开待打印 PDF")
             session.closeStdin()
@@ -246,12 +236,7 @@ object PrintDriverEngine {
 
             val stderrThread = Thread {
                 try {
-                    val buf = ByteArray(4096)
-                    while (stderrLog.length < 8192) {
-                        val n = session.stderr.read(buf)
-                        if (n < 0) break
-                        stderrLog.append(String(buf, 0, n, Charsets.UTF_8))
-                    }
+                    DriverDiagnostics.drain(session.stderr, stderrLog, 8192)
                 } catch (_: Exception) {}
             }.apply { start() }
 
