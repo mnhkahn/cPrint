@@ -4,6 +4,8 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("org.jetbrains.kotlin.kapt")
     id("androidx.navigation.safeargs.kotlin")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 val releaseKeystoreFile = System.getenv("RELEASE_KEYSTORE_FILE")
@@ -98,6 +100,12 @@ android {
 }
 
 dependencies {
+    // Analytics 22.1.2 in BoM 33.7.0 remains compatible with Kotlin 1.9.22.
+    // Check Kotlin metadata compatibility when upgrading the Firebase BoM.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
+
     // Core Android
     implementation("androidx.core:core-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
