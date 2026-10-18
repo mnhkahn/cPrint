@@ -153,7 +153,8 @@ class CPrintPrintService : PrintService() {
                         documentUri = documentUri.toString(),
                         documentType = PDF_MIME_TYPE,
                         totalPages = pageCount,
-                        settings = settings
+                        settings = settings,
+                        source = com.cprint.app.analytics.PrintSource.SYSTEM
                     )
                 }
                 if (result.isSuccess && !systemJob.isCancelled) {

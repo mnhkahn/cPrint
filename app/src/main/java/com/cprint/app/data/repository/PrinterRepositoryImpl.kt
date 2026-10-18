@@ -1,5 +1,6 @@
 package com.cprint.app.data.repository
 
+import com.cprint.app.analytics.AppAnalytics
 import android.content.Context
 import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
@@ -31,7 +32,8 @@ import javax.inject.Singleton
 class PrinterRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val printerDao: PrinterDao,
-    private val usbPrintRepository: UsbPrintRepositoryImpl
+    private val usbPrintRepository: UsbPrintRepositoryImpl,
+    private val analytics: AppAnalytics
 ) : PrinterRepository {
     private val connectionMutex = Mutex()
 
@@ -59,7 +61,18 @@ class PrinterRepositoryImpl @Inject constructor(
 
     override suspend fun connectPrinter(device: UsbDevice): Result<Printer> =
         withContext(Dispatchers.IO) {
-            connectionMutex.withLock { connectDevice(device) }
+            connectionMutex.withLock {
+                // Lifecycle callbacks reusing the same connection are not new attempts.
+                if (usbManager.hasPermission(device) && usbPrintRepository.isConnectedTo(device) &&
+                    printerDao.getPrinterByVidPid(device.vendorId, device.productId)?.status == PrinterStatus.READY) {
+                    return@withLock connectDevice(device)
+                }
+                val started = System.nanoTime()
+                val result = connectDevice(device)
+                analytics.connectionResult(device.vendorId, device.productId, result.exceptionOrNull(),
+                    AppAnalytics.elapsedMs(started), usbManager.hasPermission(device))
+                result
+            }
         }
 
     private suspend fun connectDevice(device: UsbDevice): Result<Printer> {

@@ -40,7 +40,8 @@ class PrintPreviewActivity : ComponentActivity() {
                 Timber.d(error, "Provider only grants temporary access; document will be imported")
             }
             intent.putExtra(EXTRA_DOCUMENT_URI, uri.toString())
-            viewModel.loadDocument(uri.toString())
+            intent.putExtra("document_source", com.cprint.app.analytics.DocumentSource.FILE_PICKER.name)
+            viewModel.loadDocument(uri.toString(), com.cprint.app.analytics.DocumentSource.FILE_PICKER)
         }
     }
 
@@ -66,7 +67,10 @@ class PrintPreviewActivity : ComponentActivity() {
                 // Permission might not be grantable, log but continue
                 Timber.w("Could not take persistable permission in PrintPreviewActivity: ${e.message}")
             }
-            viewModel.loadDocument(uriString)
+            val source = com.cprint.app.analytics.DocumentSource.values().firstOrNull {
+                it.name == intent.getStringExtra("document_source")
+            } ?: com.cprint.app.analytics.DocumentSource.UNKNOWN
+            viewModel.loadDocument(uriString, source)
         }
 
         // Observe for print completion

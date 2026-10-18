@@ -1,5 +1,7 @@
 package com.cprint.app.domain.usecase.print
 
+import com.cprint.app.analytics.AppAnalytics
+import com.cprint.app.analytics.PrintSource
 import com.cprint.app.domain.model.PrintJob
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.repository.PrintJobRepository
@@ -12,25 +14,47 @@ import javax.inject.Inject
  */
 class CreatePrintJobUseCase @Inject constructor(
     private val printJobRepository: PrintJobRepository,
-    private val usbPrintRepository: UsbPrintRepository
+    private val usbPrintRepository: UsbPrintRepository,
+    private val analytics: AppAnalytics
 ) {
     suspend operator fun invoke(
         documentName: String,
         documentUri: String,
         documentType: String,
         totalPages: Int,
-        settings: PrintSettings
+        settings: PrintSettings,
+        source: PrintSource = PrintSource.APP
     ): Result<PrintJob> {
-        val lease = com.cprint.app.data.repository.ImportedDocumentStore.retain(documentUri)
-        return try {
-            execute(documentName, documentUri, documentType, totalPages, settings)
+        val started = System.nanoTime()
+        var stage = "create_job"
+        analytics.printRequested(documentType, totalPages, settings, source)
+        var failure: Throwable? = null
+        try {
+            val lease = com.cprint.app.data.repository.ImportedDocumentStore.retain(documentUri)
+            val result = try {
+                execute(documentName, documentUri, documentType, totalPages, settings) {
+                    stage = "processing"
+                    analytics.printStarted(documentType, totalPages, settings, source)
+                }
+            } finally {
+                lease.close()
+            }
+            failure = result.exceptionOrNull()
+            return result
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            failure = error
+            throw error
+        } catch (error: Exception) {
+            failure = error
+            return Result.failure(error)
         } finally {
-            lease.close()
+            analytics.printFinished(documentType, totalPages, settings, source, failure,
+                if (failure == null) "transfer" else stage, AppAnalytics.elapsedMs(started))
         }
     }
 
     private suspend fun execute(documentName: String, documentUri: String, documentType: String,
-                                totalPages: Int, settings: PrintSettings): Result<PrintJob> {
+                                totalPages: Int, settings: PrintSettings, onStarted: () -> Unit): Result<PrintJob> {
         Timber.d("CreatePrintJobUseCase: Creating print job for $documentName")
 
         val job = PrintJob(
@@ -61,6 +85,7 @@ class CreatePrintJobUseCase @Inject constructor(
         return try {
             Timber.d("CreatePrintJobUseCase: Starting USB print...")
             printJobRepository.updateJobStatus(job.id, com.cprint.app.domain.model.PrintJobStatus.PRINTING)
+            onStarted()
             val printResult = usbPrintRepository.sendPrintJob(job, settings)
 
             if (printResult.isSuccess) {

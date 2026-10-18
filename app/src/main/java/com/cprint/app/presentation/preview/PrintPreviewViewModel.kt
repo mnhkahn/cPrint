@@ -59,7 +59,7 @@ class PrintPreviewViewModel @Inject constructor(
     private var pdfRenderer: PdfRenderer? = null
     private var parcelFileDescriptor: ParcelFileDescriptor? = null
 
-    fun loadDocument(uriString: String) {
+    fun loadDocument(uriString: String, source: com.cprint.app.analytics.DocumentSource = com.cprint.app.analytics.DocumentSource.UNKNOWN) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             try {
@@ -70,7 +70,7 @@ class PrintPreviewViewModel @Inject constructor(
                 _totalPages.value = 0
 
                 val uri = Uri.parse(uriString)
-                val result = openDocumentUseCase(uri)
+                val result = openDocumentUseCase(uri, source)
 
                 if (result.isSuccess) {
                     val document = result.getOrThrow()

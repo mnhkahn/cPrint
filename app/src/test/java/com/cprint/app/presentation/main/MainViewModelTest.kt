@@ -39,7 +39,7 @@ class MainViewModelTest {
         whenever(printers.getConnectedPrinter()).thenReturn(flowOf(null))
         whenever(documents.getRecentDocuments(10)).thenReturn(documentFlow)
         model = MainViewModel(GetConnectedPrinterUseCase(printers), GetRecentDocumentsUseCase(documents),
-            OpenDocumentUseCase(documents), printers, mock<Context>())
+            OpenDocumentUseCase(documents, mock()), printers, mock<Context>())
         dispatcher.scheduler.runCurrent()
     }
     @After fun tearDown() { Dispatchers.resetMain() }

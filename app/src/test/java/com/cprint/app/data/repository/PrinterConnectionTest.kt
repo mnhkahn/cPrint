@@ -20,6 +20,7 @@ class PrinterConnectionTest {
     private val connection: UsbDeviceConnection = mock()
     private val dao: PrinterDao = mock()
     private val usb: UsbPrintRepositoryImpl = mock()
+    private val analytics: com.cprint.app.analytics.AppAnalytics = mock()
     private lateinit var repository: PrinterRepositoryImpl
 
     @Before fun setUp() {
@@ -29,7 +30,7 @@ class PrinterConnectionTest {
         whenever(manager.hasPermission(device)).thenReturn(true)
         whenever(manager.openDevice(device)).thenReturn(connection)
         whenever(usb.connect(device, connection)).thenReturn(true)
-        repository = PrinterRepositoryImpl(context, dao, usb)
+        repository = PrinterRepositoryImpl(context, dao, usb, analytics)
     }
 
     @Test fun `initializes shared USB connection before marking printer ready`() = runBlocking<Unit> {
@@ -100,4 +101,14 @@ class PrinterConnectionTest {
         verify(usb).disconnect()
         verify(dao).updatePrinterStatus(saved.firstValue.id, PrinterStatus.DISCONNECTED)
     }
+    @Test fun `analytics counts actual connections once across lifecycle reuse`() = runBlocking<Unit> {
+        repository.connectPrinter(device)
+        val saved = argumentCaptor<PrinterEntity>()
+        verify(dao).insertPrinter(saved.capture())
+        whenever(dao.getPrinterByVidPid(1208, 2217)).thenReturn(saved.firstValue)
+        whenever(usb.isConnectedTo(device)).thenReturn(true)
+        repository.connectPrinter(device)
+        verify(analytics, times(1)).connectionResult(eq(1208), eq(2217), isNull(), any(), eq(true))
+    }
+
 }

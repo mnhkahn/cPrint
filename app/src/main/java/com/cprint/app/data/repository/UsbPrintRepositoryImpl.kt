@@ -1,5 +1,6 @@
 package com.cprint.app.data.repository
 
+import com.cprint.app.analytics.PrintPipelineException
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -72,7 +73,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
     override suspend fun sendPrintJob(job: PrintJob, settings: PrintSettings): Result<Unit> {
         android.util.Log.d("UsbPrintRepo", "sendPrintJob STARTED for: ${job.documentName}")
         Timber.d("sendPrintJob started for: ${job.documentName}, type: ${job.documentType}")
-        return withContext(Dispatchers.IO) {
+        var stage = "connection"
+        val result = withContext(Dispatchers.IO) {
             try {
                 isCancelled = false
                 _printProgress.value = 0
@@ -104,6 +106,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
                 // Prepare print data based on document type and settings
                 android.util.Log.d("UsbPrintRepo", "Preparing print data for: ${job.documentName}, type: ${job.documentType}")
+                stage = "render"
                 val printData = preparePrintData(job, settings)
                 android.util.Log.d("UsbPrintRepo", "Print data prepared: ${printData.size} bytes")
                 Timber.d("Print data prepared: ${printData.size} bytes")
@@ -130,6 +133,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
                 // bulkTransfer 由内核按端点 maxPacketSize 自动拆包，
                 // 应用层用大 buffer 才能跑满 Full-Speed 带宽（64 字节分包只有 ~50KB/s）
+                stage = "transfer"
                 val chunkSize = 16384
                 val totalCopies = job.copies.coerceAtLeast(1)
                 val totalChunks = ((printData.size + chunkSize - 1) / chunkSize) * totalCopies
@@ -195,6 +199,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 Result.failure(e)
             }
         }
+        val error = result.exceptionOrNull()
+        return if (error == null) result else Result.failure(PrintPipelineException(stage, error))
     }
 
     override suspend fun sendRawData(data: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {

@@ -1,5 +1,8 @@
 package com.cprint.app.presentation.main
 
+import com.cprint.app.analytics.AppAnalytics
+import com.cprint.app.analytics.DocumentSource
+import javax.inject.Inject
 import android.Manifest
 import android.app.AlertDialog
 import android.app.PendingIntent
@@ -47,6 +50,7 @@ import timber.log.Timber
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var analytics: AppAnalytics
 
     private val viewModel: MainViewModel by viewModels()
     private val updater: AppUpdateViewModel by viewModels()
@@ -116,6 +120,7 @@ class MainActivity : ComponentActivity() {
                             Toast.makeText(context, "打印机权限已授予，正在连接...", Toast.LENGTH_SHORT).show()
                             viewModel.connectPrinter(it)
                         } else {
+                            analytics.usbPermissionDenied(it.vendorId, it.productId)
                             Timber.w("MainActivity: USB permission denied for ${it.deviceName}")
                             Toast.makeText(context, "打印机权限被拒绝", Toast.LENGTH_SHORT).show()
                         }
@@ -271,7 +276,7 @@ class MainActivity : ComponentActivity() {
             }
             Intent.ACTION_VIEW -> {
                 intent.data?.let { uri ->
-                    handleSelectedDocument(uri)
+                    handleSelectedDocument(uri, DocumentSource.OPEN_WITH)
                 }
             }
             Intent.ACTION_SEND -> {
@@ -281,17 +286,17 @@ class MainActivity : ComponentActivity() {
                     @Suppress("DEPRECATION")
                     intent.getParcelableExtra(Intent.EXTRA_STREAM)
                 }
-                uri?.let { handleSelectedDocument(it) }
+                uri?.let { handleSelectedDocument(it, DocumentSource.SHARE) }
             }
         }
     }
 
-    private fun handleSelectedDocument(uri: Uri) {
-        openPrintPreview(uri.toString())
+    private fun handleSelectedDocument(uri: Uri, source: DocumentSource = DocumentSource.FILE_PICKER) {
+        openPrintPreview(uri.toString(), source)
     }
 
-    private fun openPrintPreview(documentUri: String) {
-        startActivity(PrintPreviewActivity.createIntent(this, documentUri))
+    private fun openPrintPreview(documentUri: String, source: DocumentSource = DocumentSource.RECENT) {
+        startActivity(PrintPreviewActivity.createIntent(this, documentUri).putExtra("document_source", source.name))
     }
 
     private fun openPrintSettings() {

@@ -1,5 +1,6 @@
 package com.cprint.app.di
 
+import com.cprint.app.analytics.AppAnalytics
 import com.cprint.app.domain.repository.DocumentRepository
 import com.cprint.app.domain.repository.PrintJobRepository
 import com.cprint.app.domain.repository.PrinterRepository
@@ -74,9 +75,10 @@ object UseCaseModule {
     @Singleton
     fun provideCreatePrintJobUseCase(
         printJobRepository: PrintJobRepository,
-        usbPrintRepository: UsbPrintRepository
+        usbPrintRepository: UsbPrintRepository,
+        analytics: AppAnalytics
     ): CreatePrintJobUseCase {
-        return CreatePrintJobUseCase(printJobRepository, usbPrintRepository)
+        return CreatePrintJobUseCase(printJobRepository, usbPrintRepository, analytics)
     }
 
     @Provides
@@ -99,9 +101,10 @@ object UseCaseModule {
     @Provides
     @Singleton
     fun provideRetryPrintJobUseCase(
-        printJobRepository: PrintJobRepository
+        printJobRepository: PrintJobRepository,
+        analytics: AppAnalytics
     ): RetryPrintJobUseCase {
-        return RetryPrintJobUseCase(printJobRepository)
+        return RetryPrintJobUseCase(printJobRepository, analytics)
     }
 
     // Document Use Cases
@@ -116,8 +119,9 @@ object UseCaseModule {
     @Provides
     @Singleton
     fun provideOpenDocumentUseCase(
-        documentRepository: DocumentRepository
+        documentRepository: DocumentRepository,
+        analytics: AppAnalytics
     ): OpenDocumentUseCase {
-        return OpenDocumentUseCase(documentRepository)
+        return OpenDocumentUseCase(documentRepository, analytics)
     }
 }
