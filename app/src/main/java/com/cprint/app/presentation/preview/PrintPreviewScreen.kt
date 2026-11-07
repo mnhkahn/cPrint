@@ -439,11 +439,33 @@ private fun SettingsPanel(
             ) {
                 Text(stringResource(R.string.paper_size))
                 DropdownSelector(
-                    options = PaperSize.entries.map { it.name },
-                    selected = settings.paperSize.name,
-                    onSelected = {
-                        onSettingsChange(settings.copy(paperSize = PaperSize.valueOf(it)))
-                    }
+                    options = PaperSize.entries,
+                    selected = settings.paperSize,
+                    optionLabel = { it.name },
+                    onSelected = { onSettingsChange(settings.copy(paperSize = it)) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.orientation))
+                DropdownSelector(
+                    options = Orientation.entries,
+                    selected = settings.orientation,
+                    optionLabel = {
+                        stringResource(
+                            when (it) {
+                                Orientation.PORTRAIT -> R.string.portrait
+                                Orientation.LANDSCAPE -> R.string.landscape
+                            }
+                        )
+                    },
+                    onSelected = { onSettingsChange(settings.copy(orientation = it)) }
                 )
             }
 
@@ -457,11 +479,10 @@ private fun SettingsPanel(
             ) {
                 Text(stringResource(R.string.color_mode))
                 DropdownSelector(
-                    options = ColorMode.entries.map { it.name },
-                    selected = settings.colorMode.name,
-                    onSelected = {
-                        onSettingsChange(settings.copy(colorMode = ColorMode.valueOf(it)))
-                    }
+                    options = ColorMode.entries,
+                    selected = settings.colorMode,
+                    optionLabel = { it.name },
+                    onSelected = { onSettingsChange(settings.copy(colorMode = it)) }
                 )
             }
         }
@@ -469,21 +490,22 @@ private fun SettingsPanel(
 }
 
 @Composable
-private fun DropdownSelector(
-    options: List<String>,
-    selected: String,
-    onSelected: (String) -> Unit
+private fun <T> DropdownSelector(
+    options: List<T>,
+    selected: T,
+    optionLabel: @Composable (T) -> String,
+    onSelected: (T) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         TextButton(onClick = { expanded = true }) {
-            Text(selected)
+            Text(optionLabel(selected))
             Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option) },
+                    text = { Text(optionLabel(option)) },
                     onClick = {
                         expanded = false
                         onSelected(option)

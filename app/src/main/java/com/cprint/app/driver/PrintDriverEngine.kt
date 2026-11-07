@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
@@ -12,6 +13,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import com.cprint.app.domain.model.ColorMode
 import com.cprint.app.domain.model.DuplexMode
+import com.cprint.app.domain.model.Orientation
 import com.cprint.app.domain.model.PrintQuality
 import com.cprint.app.domain.model.PrintSettings
 import kotlinx.coroutines.Dispatchers
@@ -70,17 +72,12 @@ object PrintDriverEngine {
         val dpi = DPI
         val widthPx = (settings.paperSize.widthMm / 25.4f * dpi).toInt()
         val heightPx = (settings.paperSize.heightMm / 25.4f * dpi).toInt()
-        val (pageWidth, pageHeight) = if (settings.orientation.name == "LANDSCAPE") {
-            heightPx to widthPx
-        } else {
-            widthPx to heightPx
-        }
         val so = DriverPackager.ensureInstalled(context, DriverPackager.DRV_ESCPR)
         val argv = arrayOf(
             so.absolutePath,
             printerModel,
-            pageWidth.toString(),
-            pageHeight.toString(),
+            widthPx.toString(),
+            heightPx.toString(),
             dpi.toString(),
             if (settings.colorMode == ColorMode.COLOR) "COLOR" else "MONO",
             settings.paperSize.value,
@@ -128,12 +125,12 @@ object PrintDriverEngine {
                     pixelInput.write(byteArrayOf(pageIndexes.size.toByte()))
                     pageIndexes.forEachIndexed { outputIndex, pageIndex ->
                         renderer.openPage(pageIndex).use { page ->
-                            val bitmap = Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                            val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
                             try {
                                 bitmap.eraseColor(Color.WHITE)
-                                val matrix = android.graphics.Matrix().apply {
-                                    setScale(pageWidth.toFloat() / page.width, pageHeight.toFloat() / page.height)
-                                }
+                                val matrix = pageToRasterMatrix(
+                                    page.width, page.height, widthPx, heightPx, settings.orientation
+                                )
                                 page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                                 pixelInput.write(byteArrayOf(outputIndex.toByte()))
                                 RgbBitmapWriter.write(bitmap, pixelInput)
@@ -162,6 +159,31 @@ object PrintDriverEngine {
         } finally {
             try { session.closeStdin() } catch (_: Exception) {}
             session.destroy()
+        }
+    }
+
+    // ESC/P-R consumes rows in paper feed order. Fit the PDF to the same
+    // logical sheet as the preview, then turn landscape onto that raster.
+    internal fun pageToRasterMatrix(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        rasterWidth: Int,
+        rasterHeight: Int,
+        orientation: Orientation
+    ): Matrix {
+        val landscape = orientation == Orientation.LANDSCAPE
+        val sheetWidth = if (landscape) rasterHeight else rasterWidth
+        val sheetHeight = if (landscape) rasterWidth else rasterHeight
+        return Matrix().apply {
+            setRectToRect(
+                RectF(0f, 0f, sourceWidth.toFloat(), sourceHeight.toFloat()),
+                RectF(0f, 0f, sheetWidth.toFloat(), sheetHeight.toFloat()),
+                Matrix.ScaleToFit.CENTER
+            )
+            if (landscape) {
+                postRotate(-90f)
+                postTranslate(0f, rasterHeight.toFloat())
+            }
         }
     }
 
