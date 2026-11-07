@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cprint.app.domain.model.PageRange
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.usecase.document.OpenDocumentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -54,6 +55,7 @@ class PrintPreviewViewModel @Inject constructor(
     private var currentPrintJob: kotlinx.coroutines.Job? = null
 
     private var loadJob: kotlinx.coroutines.Job? = null
+    private var sourceUri: String? = null
     private var documentLease: AutoCloseable? = null
 
     private var pdfRenderer: PdfRenderer? = null
@@ -61,6 +63,10 @@ class PrintPreviewViewModel @Inject constructor(
 
     fun loadDocument(uriString: String, source: com.cprint.app.analytics.DocumentSource = com.cprint.app.analytics.DocumentSource.UNKNOWN) {
         loadJob?.cancel()
+        if (sourceUri != uriString) {
+            sourceUri = uriString
+            _printSettings.value = _printSettings.value.copy(pageRange = null)
+        }
         loadJob = viewModelScope.launch {
             try {
                 documentLease?.close()
@@ -144,6 +150,10 @@ class PrintPreviewViewModel @Inject constructor(
         _printSettings.value = settings
     }
 
+    fun updatePrintPageRange(pageRange: PageRange?) {
+        _printSettings.value = _printSettings.value.copy(pageRange = pageRange)
+    }
+
     fun print(documentName: String, documentUri: String, documentType: String, pageCount: Int) {
         if (_isPrinting.value) return
 
@@ -154,22 +164,6 @@ class PrintPreviewViewModel @Inject constructor(
                 _printProgress.value = 0
                 _printStatusMessage.value = "准备打印..."
 
-                // Simulate progress updates (in a real app, this would come from the repository)
-                val progressJob = launch {
-                    var progress = 0
-                    while (progress < 100 && _isPrinting.value) {
-                        delay(500)
-                        progress += 2
-                        _printProgress.value = progress.coerceAtMost(99)
-                        _printStatusMessage.value = when {
-                            progress < 20 -> "正在准备文档..."
-                            progress < 50 -> "正在渲染页面..."
-                            progress < 80 -> "正在发送数据到打印机..."
-                            else -> "正在打印..."
-                        }
-                    }
-                }
-
                 val result = PrintJobService.print(
                     context = context,
                     documentName = documentName,
@@ -177,14 +171,19 @@ class PrintPreviewViewModel @Inject constructor(
                     documentType = documentType,
                     totalPages = pageCount,
                     settings = _printSettings.value
-                )
-
-                progressJob.cancel()
+                ) { progress, waiting ->
+                    _printProgress.value = progress.coerceAtMost(99)
+                    _printStatusMessage.value = when {
+                        waiting -> "等待打印机继续接收数据…"
+                        progress > 0 -> "正在发送数据到打印机…"
+                        else -> "正在准备打印数据…"
+                    }
+                }
 
                 if (result.isSuccess) {
                     Timber.d("Print job completed successfully")
                     _printProgress.value = 100
-                    _printStatusMessage.value = "打印完成"
+                    _printStatusMessage.value = "已发送到打印机"
                     // Keep dialog visible for 2 seconds so user can see completion
                     delay(2000)
                 } else {

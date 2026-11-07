@@ -43,6 +43,8 @@ interface UsbPrintRepository {
      */
     fun getPrintProgress(): Flow<Int>
 
+    fun getPrintWaiting(): Flow<Boolean>
+
     /**
      * Cancel current print operation
      */

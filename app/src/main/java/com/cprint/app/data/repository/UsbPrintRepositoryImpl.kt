@@ -28,14 +28,18 @@ import com.cprint.app.util.UsbUtils
 import com.cprint.app.util.NativeUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.nio.ByteBuffer
@@ -55,7 +59,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
     }
 
     private var currentDevice: UsbDevice? = null
-    private var currentConnection: UsbDeviceConnection? = null
+    @Volatile private var currentConnection: UsbDeviceConnection? = null
     private var bulkOutEndpoint: UsbEndpoint? = null
     private var bulkInEndpoint: UsbEndpoint? = null
     private var ieee1284DeviceId: String? = null
@@ -63,14 +67,17 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
     private val _printProgress = MutableStateFlow(0)
     override fun getPrintProgress(): Flow<Int> = _printProgress.asStateFlow()
+    private val _printWaiting = MutableStateFlow(false)
+    override fun getPrintWaiting(): Flow<Boolean> = _printWaiting.asStateFlow()
 
+    private val usbOutput = Mutex()
     @Volatile private var isCancelled = false
 
     fun isConnectedTo(device: UsbDevice): Boolean =
         currentDevice?.deviceName == device.deviceName &&
             currentConnection != null && bulkOutEndpoint != null && driverRoute != null
 
-    override suspend fun sendPrintJob(job: PrintJob, settings: PrintSettings): Result<Unit> {
+    override suspend fun sendPrintJob(job: PrintJob, settings: PrintSettings): Result<Unit> = withUsbOutput {
         android.util.Log.d("UsbPrintRepo", "sendPrintJob STARTED for: ${job.documentName}")
         Timber.d("sendPrintJob started for: ${job.documentName}, type: ${job.documentType}")
         var stage = "connection"
@@ -78,6 +85,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
             try {
                 isCancelled = false
                 _printProgress.value = 0
+                _printWaiting.value = false
 
                 // Check USB connection and try to auto-reconnect if needed
                 var connection = currentConnection
@@ -94,14 +102,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 }
 
                 // Verify connection and endpoint
-                if (currentConnection == null) {
-                    Timber.e("Current connection is null after reconnect check!")
-                    return@withContext Result.failure(IllegalStateException("打印机连接异常"))
-                }
-                if (bulkOutEndpoint == null) {
-                    Timber.e("Bulk out endpoint is null!")
-                    return@withContext Result.failure(IllegalStateException("打印机端点未初始化"))
-                }
+                val printConnection = checkNotNull(connection) { "打印机连接异常" }
+                val endpoint = checkNotNull(bulkOutEndpoint) { "打印机端点未初始化" }
                 Timber.d("USB connection verified: device=${currentDevice?.deviceName}, endpoint=$bulkOutEndpoint")
 
                 // Prepare print data based on document type and settings
@@ -131,63 +133,42 @@ class UsbPrintRepositoryImpl @Inject constructor(
                     )
                 }
 
-                // bulkTransfer 由内核按端点 maxPacketSize 自动拆包，
-                // 应用层用大 buffer 才能跑满 Full-Speed 带宽（64 字节分包只有 ~50KB/s）
                 stage = "transfer"
-                val chunkSize = 16384
                 val totalCopies = job.copies.coerceAtLeast(1)
-                val totalChunks = ((printData.size + chunkSize - 1) / chunkSize) * totalCopies
-                Timber.d("Sending print data in $totalChunks chunks (${printData.size} bytes x $totalCopies copies)")
-
-                // Check if cancelled before starting
-                if (isCancelled) {
-                    return@withContext Result.failure(Exception("打印已取消"))
-                }
-
-                var chunkIndex = 0
-                var totalBytesSent = 0
-                val startTime = System.currentTimeMillis()
-                // 按 20KB/s 的保守吞吐估算超时，下限 2 分钟
-                val maxPrintTime = maxOf(120_000L, printData.size.toLong() * totalCopies / 20)
-
-                for (copy in 0 until totalCopies) {
-                    printData.inputStream().use { stream ->
-                        val buffer = ByteArray(chunkSize)
-                        var bytesRead: Int
-
-                        while (stream.read(buffer).also { bytesRead = it } != -1) {
-                            // Check timeout
-                            if (System.currentTimeMillis() - startTime > maxPrintTime) {
-                                Timber.e("Print timeout after ${maxPrintTime / 1000} seconds")
-                                return@withContext Result.failure(Exception("打印超时，请检查打印机"))
+                val totalBytes = printData.size.toLong() * totalCopies
+                var bytesSent = 0L
+                val printContext = currentCoroutineContext()
+                try {
+                    UsbPrintTransfer(
+                        connection = printConnection,
+                        endpoint = endpoint,
+                        isConnected = { currentConnection === printConnection },
+                        disconnect = { disconnect(printConnection) }
+                    ).send(
+                        data = printData,
+                        copies = totalCopies,
+                        checkActive = {
+                            printContext.ensureActive()
+                            if (isCancelled) throw CancellationException("打印已取消")
+                        },
+                        onWaiting = { waiting ->
+                            if (waiting && !_printWaiting.value) {
+                                Timber.w("USB waiting for printer: $bytesSent/$totalBytes bytes confirmed")
                             }
-                            if (isCancelled) {
-                                return@withContext Result.failure(Exception("Print cancelled"))
-                            }
-
-                            val chunk = if (bytesRead < chunkSize) buffer.copyOf(bytesRead) else buffer
-                            val result = sendRawData(chunk)
-
-                            if (result.isFailure) {
-                                Timber.e("Failed to send chunk $chunkIndex: ${result.exceptionOrNull()?.message}")
-                                return@withContext Result.failure(
-                                    result.exceptionOrNull() ?: Exception("Failed to send data")
-                                )
-                            }
-
-                            chunkIndex++
-                            totalBytesSent += bytesRead
-                            val progress = (chunkIndex * 100) / totalChunks
-                            _printProgress.value = progress
-
-                            if (progress % 10 == 0 || chunkIndex % 100 == 0) {
-                                Timber.d("Print progress: $progress% (copy ${copy + 1}/$totalCopies, chunk $chunkIndex/$totalChunks)")
-                            }
+                            _printWaiting.value = waiting
+                        },
+                        onBytesSent = { written ->
+                            bytesSent += written
+                            _printProgress.value = (bytesSent * 100 / totalBytes).toInt()
                         }
-                    }
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    throw IOException("${error.message}（已确认发送 $bytesSent / $totalBytes 字节）", error)
                 }
 
-                Timber.d("Print data sent complete: $totalBytesSent bytes in $chunkIndex chunks, $totalCopies copies")
+                Timber.d("Print data sent complete: $bytesSent bytes, $totalCopies copies")
 
                 _printProgress.value = 100
                 Timber.d("Print job sent successfully")
@@ -200,10 +181,23 @@ class UsbPrintRepositoryImpl @Inject constructor(
             }
         }
         val error = result.exceptionOrNull()
-        return if (error == null) result else Result.failure(PrintPipelineException(stage, error))
+        if (error == null) result else Result.failure(PrintPipelineException(stage, error))
     }
 
-    override suspend fun sendRawData(data: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
+    private suspend fun <T> withUsbOutput(block: suspend () -> Result<T>): Result<T> {
+        if (!usbOutput.tryLock()) return Result.failure(IllegalStateException("打印机正在处理其他任务"))
+        try {
+            return block()
+        } finally {
+            usbOutput.unlock()
+        }
+    }
+
+    override suspend fun sendRawData(data: ByteArray): Result<Unit> = withUsbOutput {
+        sendRawDataOnIo(data)
+    }
+
+    private suspend fun sendRawDataOnIo(data: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val connection = checkNotNull(currentConnection) { "No USB connection" }
             val endpoint = checkNotNull(bulkOutEndpoint) { "No output endpoint" }
@@ -242,8 +236,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
         return sendRawData(psData)
     }
 
-    override suspend fun queryPrinterStatus(): Result<PrinterDeviceStatus> {
-        return withContext(Dispatchers.IO) {
+    override suspend fun queryPrinterStatus(): Result<PrinterDeviceStatus> = withUsbOutput {
+        withContext(Dispatchers.IO) {
             try {
                 val connection = currentConnection
                     ?: return@withContext Result.failure(IllegalStateException("No USB connection"))
@@ -331,7 +325,9 @@ class UsbPrintRepositoryImpl @Inject constructor(
     /**
      * Connect to a USB printer device
      */
+    @Synchronized
     fun connect(device: UsbDevice, connection: UsbDeviceConnection): Boolean {
+        if (currentConnection != null && currentConnection !== connection) disconnect()
         currentDevice = device
         currentConnection = connection
 
@@ -359,18 +355,26 @@ class UsbPrintRepositoryImpl @Inject constructor(
     /**
      * Disconnect from current printer
      */
-    fun disconnect() {
-        currentConnection?.let { connection ->
-            currentDevice?.let { device ->
-                for (i in 0 until device.interfaceCount) {
-                    connection.releaseInterface(device.getInterface(i))
+    @Synchronized
+    fun disconnect() = disconnect(currentConnection)
+
+    @Synchronized
+    private fun disconnect(expected: UsbDeviceConnection?) {
+        if (currentConnection !== expected) return
+        val device = currentDevice
+        expected?.let { connection ->
+            synchronized(connection) {
+                if (device != null) {
+                    for (i in 0 until device.interfaceCount) {
+                        connection.releaseInterface(device.getInterface(i))
+                    }
                 }
+                connection.close()
+                currentConnection = null
             }
-            connection.close()
         }
 
         currentDevice = null
-        currentConnection = null
         bulkOutEndpoint = null
         bulkInEndpoint = null
         ieee1284DeviceId = null
@@ -456,8 +460,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
         return try {
             // Parse page range if specified
-            val pageRange = parsePageRange(job.pageRange, job.totalPages)
-            val pagesToPrint = pageRange ?: (0 until job.totalPages)
+            val pagesToPrint = settings.pageRange?.toPageIndexes(job.totalPages)
+                ?: (0 until job.totalPages).toList()
             Timber.d("Pages to print: $pagesToPrint")
 
             val route = driverRoute ?: throw IllegalStateException("尚未识别打印机驱动，请重新连接打印机")
@@ -470,7 +474,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
             val driverOutput = PrintDriverEngine.renderPdfForUsb(
                 context = context,
                 documentUri = job.documentUri,
-                pageIndexes = pagesToPrint.toList(),
+                pageIndexes = pagesToPrint,
                 settings = settings,
                 printerModel = route.modelId ?: "L3118"
             )
@@ -492,34 +496,6 @@ class UsbPrintRepositoryImpl @Inject constructor(
             Timber.e(e, "Failed to prepare PDF data: ${e.message}")
             throw IllegalStateException("escpr 驱动未能生成打印数据: ${e.message}", e)
         }
-    }
-
-    /**
-     * Parse page range string (e.g., "1-3,5" -> [0,1,2,4])
-     */
-    private fun parsePageRange(rangeStr: String?, totalPages: Int): List<Int>? {
-        if (rangeStr.isNullOrBlank()) return null
-
-        val pages = mutableSetOf<Int>()
-        val parts = rangeStr.split(",", "，")
-
-        for (part in parts) {
-            val trimmed = part.trim()
-            if (trimmed.contains("-")) {
-                val range = trimmed.split("-")
-                if (range.size == 2) {
-                    val start = range[0].trim().toIntOrNull()?.minus(1) ?: 0
-                    val end = range[1].trim().toIntOrNull()?.minus(1) ?: (totalPages - 1)
-                    for (i in start.coerceAtLeast(0)..end.coerceAtMost(totalPages - 1)) {
-                        pages.add(i)
-                    }
-                }
-            } else {
-                trimmed.toIntOrNull()?.let { pages.add(it - 1) }
-            }
-        }
-
-        return if (pages.isNotEmpty()) pages.sorted() else null
     }
 
     /**

@@ -3,4 +3,12 @@
     <string name="orientation">打印方向</string>
     <string name="portrait">垂直</string>
     <string name="landscape">水平</string>
+    <string name="print_pages">打印页码</string>
+    <string name="print_pages_all">全部页面</string>
+    <string name="print_pages_current">仅打印第 %1$d 页</string>
+    <string name="print_pages_selection">第 %1$s 页</string>
+    <string name="print_pages_custom">指定页码</string>
+    <string name="print_pages_bounds">页码（1–%1$d）</string>
+    <string name="print_pages_invalid">请输入有效的页码或范围。</string>
+    <string name="page_range_hint">例如 2 或 1-3,5</string>
 </resources>

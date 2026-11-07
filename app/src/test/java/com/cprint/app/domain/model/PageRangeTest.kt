@@ -7,6 +7,25 @@ import org.junit.Assert.*
  * Unit tests for PageRange class
  */
 class PageRangeTest {
+    @Test fun `a single selection maps the second PDF page to index one`() {
+        val selection = requireNotNull(PageRange.parseSelection("2", totalPages = 2))
+        assertEquals(listOf(1), selection.toPageIndexes(totalPages = 2))
+    }
+
+    @Test fun `custom selection keeps all ranges and removes overlaps`() {
+        val selection = requireNotNull(PageRange.parseSelection("5，2-4,3", totalPages = 5))
+        assertEquals(listOf(1, 2, 3, 4), selection.toPageIndexes(totalPages = 5))
+    }
+
+    @Test fun `invalid custom selections cannot print all pages by accident`() {
+        listOf("", "0", "3", "2-1", "1,3", "1-", "1,").forEach {
+            assertNull(it, PageRange.parseSelection(it, totalPages = 2))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            PageRange(specificPages = listOf(3)).toPageIndexes(totalPages = 2)
+        }
+    }
+
 
     @Test
     fun `parse empty string returns null`() {

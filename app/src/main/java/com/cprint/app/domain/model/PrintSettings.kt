@@ -65,6 +65,17 @@ data class PageRange(
         return (end - start + 1).coerceAtLeast(0)
     }
 
+    internal fun toPageIndexes(totalPages: Int): List<Int> {
+        if (specificPages.isNotEmpty()) {
+            require(specificPages.all { it in 1..totalPages }) { "打印页码超出文档范围" }
+            return specificPages.distinct().sorted().map { it - 1 }
+        }
+        val start = startPage ?: 1
+        val end = endPage ?: totalPages
+        require(start in 1..totalPages && end in start..totalPages) { "打印页码超出文档范围" }
+        return (start - 1 until end).toList()
+    }
+
     override fun toString(): String {
         return when {
             specificPages.isNotEmpty() -> specificPages.joinToString(",")
@@ -76,6 +87,29 @@ data class PageRange(
     }
 
     companion object {
+        /** Validate a complete selection against the actual PDF. No partial matches. */
+        internal fun parseSelection(value: String, totalPages: Int): PageRange? {
+            val ranges = value.split(',', '，').map { segment ->
+                val parts = segment.split('-', limit = 3).map(String::trim)
+                val start = parts[0].toIntOrNull() ?: return null
+                val end = when (parts.size) {
+                    1 -> start
+                    2 -> parts[1].toIntOrNull() ?: return null
+                    else -> return null
+                }
+                if (start !in 1..totalPages || end !in start..totalPages) return null
+                start..end
+            }
+            val single = ranges.singleOrNull()
+            return when {
+                single == null -> PageRange(specificPages = buildSet {
+                    ranges.forEach { addAll(it) }
+                }.sorted())
+                single.first == single.last -> PageRange(specificPages = listOf(single.first))
+                else -> PageRange(startPage = single.first, endPage = single.last)
+            }
+        }
+
         /**
          * Parse page range from string
          */

@@ -16,6 +16,8 @@ import com.cprint.app.domain.usecase.print.CreatePrintJobUseCase
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.dropWhile
 import javax.inject.Inject
 
 /** Owns preview print jobs independently of the Activity/ViewModel lifecycle. */
@@ -58,6 +60,16 @@ class PrintJobService : Service() {
             } ?: PrintSettings(copies = intent.getIntExtra(EXTRA_COPIES, 1))
             val pages = intent.getIntExtra(EXTRA_TOTAL_PAGES, 1)
             printJob = scope.launch {
+                val progressJob = launch {
+                    combine(usbPrintRepository.getPrintProgress(), usbPrintRepository.getPrintWaiting()) { progress, waiting ->
+                        progress to waiting
+                    }.dropWhile { (progress, _) -> progress != 0 }.collect { (progress, waiting) ->
+                        receiver?.send(RESULT_PROGRESS, Bundle().apply {
+                            putInt("progress", progress)
+                            putBoolean("waiting", waiting)
+                        })
+                    }
+                }
                 try {
                     val result = withContext(Dispatchers.IO) {
                         createPrintJobUseCase(name, uri, type, pages, settings)
@@ -71,6 +83,7 @@ class PrintJobService : Service() {
                 } catch (error: Exception) {
                     receiver?.send(1, Bundle().apply { putString("error", error.message) })
                 } finally {
+                    progressJob.cancel()
                     protection?.close()
                     protection = null
                     printJob = null
@@ -103,13 +116,20 @@ class PrintJobService : Service() {
         const val EXTRA_COPIES = "copies"
         const val EXTRA_SETTINGS = "settings"
         const val EXTRA_RESULT = "result"
+        private const val RESULT_PROGRESS = 2
 
         suspend fun print(context: Context, documentName: String, documentUri: String,
-                          documentType: String, totalPages: Int, settings: PrintSettings): Result<Unit> =
+                          documentType: String, totalPages: Int, settings: PrintSettings,
+                          onProgress: (Int, Boolean) -> Unit = { _, _ -> }): Result<Unit> =
             suspendCancellableCoroutine { continuation ->
                 val receiver = object : ResultReceiver(Handler(Looper.getMainLooper())) {
                     override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
-                        if (continuation.isActive) continuation.resumeWith(Result.success(
+                        if (!continuation.isActive) return
+                        if (resultCode == RESULT_PROGRESS) {
+                            onProgress(resultData?.getInt("progress") ?: 0, resultData?.getBoolean("waiting") == true)
+                            return
+                        }
+                        continuation.resumeWith(Result.success(
                             if (resultCode == 0) Result.success(Unit)
                             else Result.failure(IllegalStateException(resultData?.getString("error") ?: "打印失败"))
                         ))

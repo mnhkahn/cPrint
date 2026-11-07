@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -40,6 +42,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -65,10 +68,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.cprint.app.R
 import com.cprint.app.domain.model.ColorMode
 import com.cprint.app.domain.model.Orientation
+import com.cprint.app.domain.model.PageRange
 import com.cprint.app.domain.model.PaperSize
 import com.cprint.app.domain.model.PrintSettings
 import kotlinx.coroutines.CancellationException
@@ -149,6 +154,7 @@ fun PrintPreviewScreen(
                         onPageChange = { viewModel.goToPage(it) },
                         onPageCountReady = { viewModel.updatePageCount(it) },
                         printSettings = printSettings,
+                        onPrintPageRangeChange = viewModel::updatePrintPageRange,
                         onSettingsChange = { viewModel.updatePrintSettings(it) }
                     )
                 }
@@ -174,6 +180,7 @@ private fun PreviewContent(
     onPageChange: (Int) -> Unit,
     onPageCountReady: (Int) -> Unit,
     printSettings: PrintSettings,
+    onPrintPageRangeChange: (PageRange?) -> Unit,
     onSettingsChange: (PrintSettings) -> Unit
 ) {
     Column(
@@ -201,6 +208,9 @@ private fun PreviewContent(
         // Settings panel
         SettingsPanel(
             settings = printSettings,
+            currentPage = currentPage,
+            totalPages = totalPages,
+            onPrintPageRangeChange = onPrintPageRangeChange,
             onSettingsChange = onSettingsChange
         )
     }
@@ -376,6 +386,9 @@ private fun PreviewLoadError(message: String, onRetry: () -> Unit) {
 @Composable
 private fun SettingsPanel(
     settings: PrintSettings,
+    currentPage: Int,
+    totalPages: Int,
+    onPrintPageRangeChange: (PageRange?) -> Unit,
     onSettingsChange: (PrintSettings) -> Unit
 ) {
     Card(
@@ -388,12 +401,12 @@ private fun SettingsPanel(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = stringResource(R.string.print_settings),
-                style = MaterialTheme.typography.titleMedium
+            PrintPageRangeSelector(
+                selected = settings.pageRange,
+                currentPage = currentPage + 1,
+                totalPages = totalPages,
+                onSelected = onPrintPageRangeChange
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // Copies
             Row(
@@ -486,6 +499,96 @@ private fun SettingsPanel(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PrintPageRangeSelector(
+    selected: PageRange?,
+    currentPage: Int,
+    totalPages: Int,
+    onSelected: (PageRange?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(stringResource(R.string.print_pages))
+        Box {
+            TextButton(
+                onClick = { expanded = true },
+                enabled = totalPages > 1,
+                modifier = Modifier.widthIn(max = 200.dp)
+            ) {
+                Text(
+                    text = selected?.let { stringResource(R.string.print_pages_selection, it.toString()) }
+                        ?: stringResource(R.string.print_pages_all),
+                    modifier = Modifier.weight(1f, fill = false),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.print_pages_all)) },
+                    onClick = {
+                        expanded = false
+                        onSelected(null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.print_pages_current, currentPage)) },
+                    onClick = {
+                        expanded = false
+                        onSelected(PageRange(specificPages = listOf(currentPage)))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.print_pages_custom)) },
+                    onClick = {
+                        expanded = false
+                        editing = true
+                    }
+                )
+            }
+        }
+    }
+    if (editing) {
+        var input by remember { mutableStateOf(selected?.toString().orEmpty()) }
+        val range = remember(input, totalPages) { PageRange.parseSelection(input, totalPages) }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(R.string.print_pages_custom)) },
+            text = {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    label = { Text(stringResource(R.string.print_pages_bounds, totalPages)) },
+                    supportingText = {
+                        Text(stringResource(if (input.isNotBlank() && range == null) {
+                            R.string.print_pages_invalid
+                        } else {
+                            R.string.page_range_hint
+                        }))
+                    },
+                    isError = input.isNotBlank() && range == null,
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = range != null, onClick = {
+                    range?.let(onSelected)
+                    editing = false
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
 

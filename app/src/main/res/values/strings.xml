@@ -52,6 +52,13 @@
     <string name="best">Best</string>
     <string name="pages_per_sheet">Pages per Sheet</string>
     <string name="page_range">Page Range</string>
+    <string name="print_pages">Print pages</string>
+    <string name="print_pages_all">All pages</string>
+    <string name="print_pages_current">Print only page %1$d</string>
+    <string name="print_pages_selection">Pages: %1$s</string>
+    <string name="print_pages_custom">Enter page numbers</string>
+    <string name="print_pages_bounds">Pages (1–%1$d)</string>
+    <string name="print_pages_invalid">Enter valid page numbers or ranges.</string>
     <string name="page_range_hint">e.g., 1-5, 8, 10-12</string>
     <string name="page_range_example">Example: 1-5, 8, 10-12</string>
     <string name="no_printer_connected">No Printer Connected</string>
