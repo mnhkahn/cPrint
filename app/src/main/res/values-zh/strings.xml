@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="orientation">打印方向</string>
+    <string name="portrait">垂直</string>
+    <string name="landscape">水平</string>
+</resources>
