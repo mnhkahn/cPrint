@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,10 +52,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.RectangleShape
@@ -80,6 +84,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 
@@ -95,12 +100,28 @@ fun PrintPreviewScreen(
     onSelectDocument: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val currentPage by viewModel.currentPage.collectAsState()
-    val totalPages by viewModel.totalPages.collectAsState()
+    val pages by viewModel.previewPages.collectAsState()
     val printSettings by viewModel.printSettings.collectAsState()
     val isPrinting by viewModel.isPrinting.collectAsState()
     val printProgress by viewModel.printProgress.collectAsState()
     val printStatusMessage by viewModel.printStatusMessage.collectAsState()
+    val documentUri = (uiState as? PrintPreviewUiState.Success)?.documentUri
+    val pageIndexes = pages.indexes
+    val pagerState = key(documentUri, pageIndexes) {
+        rememberPagerState(
+            initialPage = pages.currentPage?.let(pageIndexes::indexOf)?.coerceAtLeast(0) ?: 0,
+            pageCount = { pageIndexes.size }
+        )
+    }
+    val currentPage = pageIndexes.getOrNull(pagerState.currentPage)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { position ->
+            if (viewModel.previewPages.value.indexes == pageIndexes) {
+                pageIndexes.getOrNull(position)?.let(viewModel::goToPage)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -123,12 +144,17 @@ fun PrintPreviewScreen(
         },
         bottomBar = {
             PreviewBottomBar(
-                currentPage = currentPage,
-                totalPages = totalPages,
-                onPreviousPage = { viewModel.goToPreviousPage() },
-                onNextPage = { viewModel.goToNextPage() },
+                position = pagerState.currentPage,
+                previewPageCount = pageIndexes.size,
+                selectedDocumentPage = currentPage?.takeIf { printSettings.pageRange != null },
+                onPreviousPage = {
+                    scope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) }
+                },
+                onNextPage = {
+                    scope.launch { pagerState.animateScrollToPage((pagerState.currentPage + 1).coerceAtMost(pageIndexes.lastIndex)) }
+                },
                 onPrintClick = onPrintClick,
-                canPrint = uiState is PrintPreviewUiState.Success && !isPrinting
+                canPrint = uiState is PrintPreviewUiState.Success && pageIndexes.isNotEmpty() && !isPrinting
             )
         }
     ) { paddingValues ->
@@ -149,9 +175,10 @@ fun PrintPreviewScreen(
                 is PrintPreviewUiState.Success -> {
                     PreviewContent(
                         documentUri = state.documentUri,
-                        totalPages = state.pageCount,
+                        totalPages = pages.documentPageCount,
+                        pageIndexes = pageIndexes,
+                        pagerState = pagerState,
                         currentPage = currentPage,
-                        onPageChange = { viewModel.goToPage(it) },
                         onPageCountReady = { viewModel.updatePageCount(it) },
                         printSettings = printSettings,
                         onPrintPageRangeChange = viewModel::updatePrintPageRange,
@@ -176,8 +203,9 @@ fun PrintPreviewScreen(
 private fun PreviewContent(
     documentUri: String,
     totalPages: Int,
-    currentPage: Int,
-    onPageChange: (Int) -> Unit,
+    pageIndexes: List<Int>,
+    pagerState: PagerState,
+    currentPage: Int?,
     onPageCountReady: (Int) -> Unit,
     printSettings: PrintSettings,
     onPrintPageRangeChange: (PageRange?) -> Unit,
@@ -196,9 +224,8 @@ private fun PreviewContent(
         ) {
             PdfPageViewer(
                 documentUri = documentUri,
-                totalPages = totalPages,
-                currentPage = currentPage,
-                onPageChange = onPageChange,
+                pageIndexes = pageIndexes,
+                pagerState = pagerState,
                 onPageCountReady = onPageCountReady,
                 paperSize = printSettings.paperSize,
                 orientation = printSettings.orientation
@@ -219,9 +246,8 @@ private fun PreviewContent(
 @Composable
 private fun PdfPageViewer(
     documentUri: String,
-    totalPages: Int,
-    currentPage: Int,
-    onPageChange: (Int) -> Unit,
+    pageIndexes: List<Int>,
+    pagerState: PagerState,
     onPageCountReady: (Int) -> Unit,
     paperSize: PaperSize,
     orientation: Orientation
@@ -230,11 +256,6 @@ private fun PdfPageViewer(
     var retryCount by remember(documentUri) { mutableStateOf(0) }
     var document by remember(documentUri, retryCount) { mutableStateOf<PdfPreviewDocument?>(null) }
     var loadError by remember(documentUri, retryCount) { mutableStateOf<String?>(null) }
-    val pagerState = rememberPagerState(
-        initialPage = currentPage,
-        pageCount = { document?.pageCount ?: totalPages.coerceAtLeast(1) }
-    )
-
     LaunchedEffect(documentUri, retryCount) {
         var openedDocument: PdfPreviewDocument? = null
         try {
@@ -253,16 +274,6 @@ private fun PdfPageViewer(
         } finally {
             withContext(NonCancellable + Dispatchers.IO) { openedDocument?.close() }
         }
-    }
-
-    LaunchedEffect(currentPage) {
-        if (pagerState.currentPage != currentPage) {
-            pagerState.animateScrollToPage(currentPage)
-        }
-    }
-
-    LaunchedEffect(pagerState.currentPage) {
-        onPageChange(pagerState.currentPage)
     }
 
     val aspectRatio = if (orientation == Orientation.LANDSCAPE) {
@@ -285,15 +296,24 @@ private fun PdfPageViewer(
             val loadedDocument = document
             if (loadError != null) {
                 PreviewLoadError(message = loadError!!, onRetry = { retryCount++ })
+            } else if (loadedDocument != null && pageIndexes.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.print_pages_invalid))
+                }
             } else if (loadedDocument != null) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    PdfPageImage(
-                        document = loadedDocument,
-                        pageNumber = page
-                    )
+                // A range change replaces both the pager state and its cached items.
+                key(pagerState) {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { position ->
+                        pageIndexes.getOrNull(position)?.let { pageNumber ->
+                            PdfPageImage(
+                                document = loadedDocument,
+                                pageNumber = pageNumber
+                            )
+                        }
+                    }
                 }
             } else {
                 Box(
@@ -386,7 +406,7 @@ private fun PreviewLoadError(message: String, onRetry: () -> Unit) {
 @Composable
 private fun SettingsPanel(
     settings: PrintSettings,
-    currentPage: Int,
+    currentPage: Int?,
     totalPages: Int,
     onPrintPageRangeChange: (PageRange?) -> Unit,
     onSettingsChange: (PrintSettings) -> Unit
@@ -403,7 +423,7 @@ private fun SettingsPanel(
         ) {
             PrintPageRangeSelector(
                 selected = settings.pageRange,
-                currentPage = currentPage + 1,
+                currentPage = currentPage?.plus(1),
                 totalPages = totalPages,
                 onSelected = onPrintPageRangeChange
             )
@@ -505,7 +525,7 @@ private fun SettingsPanel(
 @Composable
 private fun PrintPageRangeSelector(
     selected: PageRange?,
-    currentPage: Int,
+    currentPage: Int?,
     totalPages: Int,
     onSelected: (PageRange?) -> Unit
 ) {
@@ -520,7 +540,7 @@ private fun PrintPageRangeSelector(
         Box {
             TextButton(
                 onClick = { expanded = true },
-                enabled = totalPages > 1,
+                enabled = totalPages > 1 || selected != null,
                 modifier = Modifier.widthIn(max = 200.dp)
             ) {
                 Text(
@@ -540,13 +560,15 @@ private fun PrintPageRangeSelector(
                         onSelected(null)
                     }
                 )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.print_pages_current, currentPage)) },
-                    onClick = {
-                        expanded = false
-                        onSelected(PageRange(specificPages = listOf(currentPage)))
-                    }
-                )
+                if (currentPage != null) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.print_pages_current, currentPage)) },
+                        onClick = {
+                            expanded = false
+                            onSelected(PageRange(specificPages = listOf(currentPage)))
+                        }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.print_pages_custom)) },
                     onClick = {
@@ -621,8 +643,9 @@ private fun <T> DropdownSelector(
 
 @Composable
 private fun PreviewBottomBar(
-    currentPage: Int,
-    totalPages: Int,
+    position: Int,
+    previewPageCount: Int,
+    selectedDocumentPage: Int?,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
     onPrintClick: () -> Unit,
@@ -643,7 +666,7 @@ private fun PreviewBottomBar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onPreviousPage,
-                    enabled = currentPage > 0
+                    enabled = position > 0
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -651,14 +674,22 @@ private fun PreviewBottomBar(
                     )
                 }
 
-                Text(
-                    text = "${currentPage + 1} / $totalPages",
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(if (previewPageCount == 0) "–" else "${position + 1} / $previewPageCount")
+                    if (selectedDocumentPage != null) {
+                        Text(
+                            text = stringResource(R.string.print_pages_selection, (selectedDocumentPage + 1).toString()),
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
 
                 IconButton(
                     onClick = onNextPage,
-                    enabled = currentPage < totalPages - 1
+                    enabled = position < previewPageCount - 1
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,

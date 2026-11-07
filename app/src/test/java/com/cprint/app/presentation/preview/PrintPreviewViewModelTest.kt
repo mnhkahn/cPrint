@@ -54,15 +54,18 @@ class PrintPreviewViewModelTest {
         assertTrue((model.uiState.value as PrintPreviewUiState.Error).message.contains("重新选择"))
     }
 
-    @Test fun `only the selected second page is sent to the print service`() = runTest(dispatcher) {
+    @Test fun `selecting the second page updates both preview and print job`() = runTest(dispatcher) {
         val context = mock<Context>()
         val model = PrintPreviewViewModel(mock(), context)
         model.updatePageCount(2)
         model.goToPage(1)
         assertNull(model.printSettings.value.pageRange)
+        model.goToPage(0)
         val selection = requireNotNull(PageRange.parseSelection("2", totalPages = 2))
         model.updatePrintPageRange(selection)
+        assertEquals(listOf(1), model.previewPages.value.indexes)
         model.goToPage(0)
+        assertEquals(1, model.previewPages.value.currentPage)
         try {
             model.print("test.pdf", "content://example/test.pdf", "application/pdf", 2)
             runCurrent()
@@ -77,5 +80,18 @@ class PrintPreviewViewModelTest {
             model.viewModelScope.cancel()
             runCurrent()
         }
+    }
+
+    @Test fun `changing the range keeps the current page when it is still selected`() = runTest(dispatcher) {
+        val model = PrintPreviewViewModel(mock(), mock<Context>())
+        model.updatePageCount(5)
+        model.goToPage(3)
+        model.updatePrintPageRange(PageRange.parseSelection("2,4", totalPages = 5))
+        assertEquals(listOf(1, 3), model.previewPages.value.indexes)
+        assertEquals(3, model.previewPages.value.currentPage)
+
+        model.updatePrintPageRange(null)
+        assertEquals((0 until 5).toList(), model.previewPages.value.indexes)
+        assertEquals(3, model.previewPages.value.currentPage)
     }
 }

@@ -33,11 +33,8 @@ class PrintPreviewViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<PrintPreviewUiState>(PrintPreviewUiState.Loading)
     val uiState: StateFlow<PrintPreviewUiState> = _uiState.asStateFlow()
 
-    private val _currentPage = MutableStateFlow(0)
-    val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
-
-    private val _totalPages = MutableStateFlow(0)
-    val totalPages: StateFlow<Int> = _totalPages.asStateFlow()
+    private val _previewPages = MutableStateFlow(PreviewPages())
+    internal val previewPages: StateFlow<PreviewPages> = _previewPages.asStateFlow()
 
     private val _printSettings = MutableStateFlow(PrintSettings())
     val printSettings: StateFlow<PrintSettings> = _printSettings.asStateFlow()
@@ -66,14 +63,13 @@ class PrintPreviewViewModel @Inject constructor(
         if (sourceUri != uriString) {
             sourceUri = uriString
             _printSettings.value = _printSettings.value.copy(pageRange = null)
+            _previewPages.value = PreviewPages()
         }
         loadJob = viewModelScope.launch {
             try {
                 documentLease?.close()
                 documentLease = null
                 _uiState.value = PrintPreviewUiState.Loading
-                _currentPage.value = 0
-                _totalPages.value = 0
 
                 val uri = Uri.parse(uriString)
                 val result = openDocumentUseCase(uri, source)
@@ -81,7 +77,7 @@ class PrintPreviewViewModel @Inject constructor(
                 if (result.isSuccess) {
                     val document = result.getOrThrow()
                     documentLease = com.cprint.app.data.repository.ImportedDocumentStore.retain(document.uri)
-                    _totalPages.value = document.pageCount
+                    updatePreviewPages(document.pageCount)
 
                     _uiState.value = PrintPreviewUiState.Success(
                         documentName = document.name,
@@ -123,35 +119,48 @@ class PrintPreviewViewModel @Inject constructor(
     }
 
     fun goToPage(pageNumber: Int) {
-        if (pageNumber in 0 until _totalPages.value) {
-            _currentPage.value = pageNumber
+        val pages = _previewPages.value
+        if (pageNumber in pages.indexes) {
+            _previewPages.value = pages.copy(currentPage = pageNumber)
         }
     }
 
     fun updatePageCount(pageCount: Int) {
         if (pageCount <= 0) return
-        _totalPages.value = pageCount
-        _currentPage.value = _currentPage.value.coerceIn(0, pageCount - 1)
+        updatePreviewPages(pageCount)
         val state = _uiState.value
         if (state is PrintPreviewUiState.Success) {
             _uiState.value = state.copy(pageCount = pageCount)
         }
     }
 
-    fun goToNextPage() {
-        goToPage(_currentPage.value + 1)
-    }
-
-    fun goToPreviousPage() {
-        goToPage(_currentPage.value - 1)
+    private fun updatePreviewPages(pageCount: Int = _previewPages.value.documentPageCount) {
+        val selection = _printSettings.value.pageRange
+        val indexes = if (selection == null) {
+            (0 until pageCount).toList()
+        } else {
+            try {
+                selection.toPageIndexes(pageCount)
+            } catch (_: IllegalArgumentException) {
+                emptyList()
+            }
+        }
+        val current = _previewPages.value.currentPage
+        _previewPages.value = PreviewPages(
+            documentPageCount = pageCount,
+            indexes = indexes,
+            currentPage = current?.takeIf { it in indexes } ?: indexes.firstOrNull()
+        )
     }
 
     fun updatePrintSettings(settings: PrintSettings) {
+        val selectionChanged = _printSettings.value.pageRange != settings.pageRange
         _printSettings.value = settings
+        if (selectionChanged) updatePreviewPages()
     }
 
     fun updatePrintPageRange(pageRange: PageRange?) {
-        _printSettings.value = _printSettings.value.copy(pageRange = pageRange)
+        updatePrintSettings(_printSettings.value.copy(pageRange = pageRange))
     }
 
     fun print(documentName: String, documentUri: String, documentType: String, pageCount: Int) {
@@ -239,6 +248,12 @@ class PrintPreviewViewModel @Inject constructor(
         parcelFileDescriptor?.close()
     }
 }
+
+internal data class PreviewPages(
+    val documentPageCount: Int = 0,
+    val indexes: List<Int> = emptyList(),
+    val currentPage: Int? = null
+)
 
 /**
  * UI State for PrintPreviewScreen
