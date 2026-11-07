@@ -72,6 +72,11 @@ object PrintDriverEngine {
         val dpi = DPI
         val widthPx = (settings.paperSize.widthMm / 25.4f * dpi).toInt()
         val heightPx = (settings.paperSize.heightMm / 25.4f * dpi).toInt()
+        val rasterFormat = if (settings.colorMode == ColorMode.COLOR) {
+            EscprRasterFormat.RGB
+        } else {
+            EscprRasterFormat.GRAY
+        }
         val so = DriverPackager.ensureInstalled(context, DriverPackager.DRV_ESCPR)
         val argv = arrayOf(
             so.absolutePath,
@@ -79,7 +84,7 @@ object PrintDriverEngine {
             widthPx.toString(),
             heightPx.toString(),
             dpi.toString(),
-            if (settings.colorMode == ColorMode.COLOR) "COLOR" else "MONO",
+            rasterFormat.ink,
             settings.paperSize.value,
             mediaQuality(settings.quality),
             duplexValue(settings.duplexMode),
@@ -87,7 +92,7 @@ object PrintDriverEngine {
             "0", "0", "0"
         )
         val session = NativeDriver.start(so, argv)
-        // Batch RGB rows into fewer native pipe writes without changing DPI.
+        // Batch raster rows into fewer native pipe writes without changing DPI.
         val pixelInput = BufferedOutputStream(session.stdin, 256 * 1024)
         val output = ByteArrayOutputStream()
         val stderr = StringBuilder()
@@ -133,7 +138,7 @@ object PrintDriverEngine {
                                 )
                                 page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
                                 pixelInput.write(byteArrayOf(outputIndex.toByte()))
-                                RgbBitmapWriter.write(bitmap, pixelInput)
+                                EscprRasterWriter.write(bitmap, pixelInput, rasterFormat)
                             } finally {
                                 bitmap.recycle()
                             }
