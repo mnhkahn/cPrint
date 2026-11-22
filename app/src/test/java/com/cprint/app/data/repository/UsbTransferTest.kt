@@ -5,6 +5,7 @@ import android.content.Context
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbRequest
+import android.os.Build
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -61,6 +62,43 @@ class UsbTransferTest {
         assertTrue(repository.sendRawData(data).isFailure)
         verify(connection, times(1)).bulkTransfer(endpoint, data, 0, 6, 5000)
         verifyNoMoreInteractions(connection)
+    }
+
+    @Test
+    @Config(sdk = [27, 28])
+    fun `chunk size respects the Android limit and preserves the byte stream`() {
+        val request = mock<UsbRequest>()
+        whenever(request.initialize(connection, endpoint)).thenReturn(true)
+        val data = ByteArray(64 * 1024 + 5) { (it % 251).toByte() }
+        val queuedLengths = mutableListOf<Int>()
+        val confirmedLengths = mutableListOf<Int>()
+        var offset = 0
+        lateinit var buffer: ByteBuffer
+        whenever(request.queue(any<ByteBuffer>())).thenAnswer {
+            buffer = it.getArgument(0)
+            queuedLengths.add(buffer.remaining())
+            true
+        }
+        whenever(connection.requestWait(1000L)).thenAnswer {
+            val length = buffer.remaining()
+            val actual = ByteArray(length)
+            buffer.get(actual)
+            assertArrayEquals(data.copyOfRange(offset, offset + length), actual)
+            offset += length
+            request
+        }
+
+        UsbPrintTransfer(connection, endpoint, { true }, { fail("unexpected disconnect") }, request)
+            .send(data, 1, {}, {}, confirmedLengths::add)
+
+        val expectedLengths = if (Build.VERSION.SDK_INT == 27) {
+            List(4) { 16 * 1024 } + 5
+        } else {
+            listOf(64 * 1024, 5)
+        }
+        assertEquals(expectedLengths, queuedLengths)
+        assertEquals(expectedLengths, confirmedLengths)
+        assertEquals(data.size, offset)
     }
 
     @Test fun `printer resumes the pending write after a pause without replaying bytes`() {

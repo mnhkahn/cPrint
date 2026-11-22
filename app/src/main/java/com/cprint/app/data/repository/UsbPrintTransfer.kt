@@ -3,6 +3,7 @@ package com.cprint.app.data.repository
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbEndpoint
 import android.hardware.usb.UsbRequest
+import android.os.Build
 import android.os.SystemClock
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -23,7 +24,9 @@ internal class UsbPrintTransfer(
         onWaiting: (Boolean) -> Unit,
         onBytesSent: (Int) -> Unit
     ) {
-        val buffer = ByteBuffer.allocateDirect(16 * 1024)
+        // UsbRequest.queue rejects buffers larger than 16 KiB before Android 9.
+        val chunkSize = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) 64 * 1024 else 16 * 1024
+        val buffer = ByteBuffer.allocateDirect(minOf(chunkSize, data.size))
         var pending = false
         try {
             check(onConnection { request.initialize(connection, endpoint) }) { "无法初始化 USB 打印写入" }

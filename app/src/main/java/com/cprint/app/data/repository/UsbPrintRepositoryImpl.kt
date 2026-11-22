@@ -16,6 +16,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import com.cprint.app.domain.model.PrintJob
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.model.KnownPrinters
@@ -30,7 +31,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -109,9 +109,10 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 // Prepare print data based on document type and settings
                 android.util.Log.d("UsbPrintRepo", "Preparing print data for: ${job.documentName}, type: ${job.documentType}")
                 stage = "render"
+                val prepareStarted = SystemClock.elapsedRealtime()
                 val printData = preparePrintData(job, settings)
-                android.util.Log.d("UsbPrintRepo", "Print data prepared: ${printData.size} bytes")
-                Timber.d("Print data prepared: ${printData.size} bytes")
+                val prepareMs = SystemClock.elapsedRealtime() - prepareStarted
+                android.util.Log.d("UsbPrintRepo", "Print data prepared: ${printData.size} bytes in ${prepareMs} ms")
 
                 // Validate print data
                 if (printData.isEmpty()) {
@@ -134,6 +135,7 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 }
 
                 stage = "transfer"
+                val transferStarted = SystemClock.elapsedRealtime()
                 val totalCopies = job.copies.coerceAtLeast(1)
                 val totalBytes = printData.size.toLong() * totalCopies
                 var bytesSent = 0L
@@ -168,7 +170,8 @@ class UsbPrintRepositoryImpl @Inject constructor(
                     throw IOException("${error.message}（已确认发送 $bytesSent / $totalBytes 字节）", error)
                 }
 
-                Timber.d("Print data sent complete: $bytesSent bytes, $totalCopies copies")
+                val transferMs = SystemClock.elapsedRealtime() - transferStarted
+                android.util.Log.d("UsbPrintRepo", "Print data sent complete: $bytesSent bytes, $totalCopies copies in ${transferMs} ms")
 
                 _printProgress.value = 100
                 Timber.d("Print job sent successfully")

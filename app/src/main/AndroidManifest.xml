@@ -170,7 +170,7 @@
             android:exported="false" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".UpdateFileProvider"
             android:authorities="${applicationId}.updates"
             android:exported="false"
             android:grantUriPermissions="true">
@@ -180,7 +180,7 @@
 
         <!-- Print Document Provider -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".PrintDocumentFileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">

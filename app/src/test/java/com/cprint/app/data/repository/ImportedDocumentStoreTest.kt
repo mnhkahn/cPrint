@@ -23,6 +23,12 @@ class ImportedDocumentStoreTest {
         (field.get(null) as MutableMap<*, *>).clear()
     }
 
+    @Test fun `updates and imported documents use distinct provider components`() {
+        val updates = context.packageManager.resolveContentProvider("${context.packageName}.updates", 0)
+        val documents = context.packageManager.resolveContentProvider("${context.packageName}.fileprovider", 0)
+        assertNotEquals(checkNotNull(updates).name, checkNotNull(documents).name)
+    }
+
     @Test fun `imported file remains readable after external source disappears`() {
         val source = File.createTempFile("shared-", ".pdf", context.cacheDir)
         val bytes = "%PDF-persisted-content".toByteArray()
