@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">USB 打印助手</string>
+    <string name="grant_permissions_message">请授予所需权限后继续。</string>
+    <string name="usb_printer_missing">未检测到 USB 打印机，请连接后重试。</string>
+    <string name="usb_permission_message">请授予访问 USB 打印机的权限。</string>
+    <string name="check_app_update">检查应用更新</string>
+    <string name="checking_app_update">正在检查更新</string>
+    <string name="downloading_app_update">正在下载更新</string>
+    <string name="app_update_ready">更新已下载，等待安装</string>
+    <string name="app_update_failed">应用更新失败</string>
     <string name="orientation">打印方向</string>
     <string name="portrait">垂直</string>
     <string name="landscape">水平</string>

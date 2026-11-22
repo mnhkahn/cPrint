@@ -6,6 +6,7 @@ import android.content.Intent
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.os.Build
+import android.util.Log
 import com.cprint.app.data.repository.PrinterRepositoryImpl
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -37,6 +38,7 @@ class UsbDeviceReceiver : BroadcastReceiver() {
             intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
         } ?: return
         if (!printerRepository.isSupportedPrinter(device)) return
+        Log.i("UsbPrintRepo", "USB printer detached: vid=${device.vendorId}, pid=${device.productId}")
         val pendingResult = goAsync()
         val appContext = context.applicationContext
         CoroutineScope(Dispatchers.IO).launch {

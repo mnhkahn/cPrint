@@ -161,7 +161,7 @@ class CPrintPrintService : PrintService() {
                     systemJob.setProgress(1f)
                     systemJob.complete()
                 } else if (!systemJob.isCancelled) {
-                    systemJob.fail(result.exceptionOrNull()?.message ?: "cPrint failed to print the document")
+                    systemJob.fail(result.exceptionOrNull()?.message ?: "Failed to print the document")
                 }
             } finally {
                 progressJob.cancel()
@@ -268,7 +268,7 @@ class CPrintPrintService : PrintService() {
                 // granted makes Android render it in the list but disable taps,
                 // leaving the user with no path to start a print job.
                 PrinterInfo.Builder(printerId, name, PrinterInfo.STATUS_IDLE)
-                    .setDescription(if (usbManager.hasPermission(device)) "Connected via USB" else "Open cPrint once to grant USB access")
+                    .setDescription(if (usbManager.hasPermission(device)) "Connected via USB" else "Open the print service app to grant USB access")
                     .setCapabilities(buildCapabilities(printerId))
                     .build()
             }.let { printers ->

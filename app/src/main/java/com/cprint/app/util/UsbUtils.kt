@@ -5,6 +5,8 @@ import android.hardware.usb.UsbConstants
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.hardware.usb.UsbDeviceConnection
+import com.cprint.app.R
+import com.cprint.app.domain.model.KnownPrinters
 import timber.log.Timber
 
 /**
@@ -72,6 +74,18 @@ object UsbUtils {
     fun getConnectedPrinters(context: Context): List<UsbDevice> {
         val usbManager = context.getSystemService(Context.USB_SERVICE) as UsbManager
         return usbManager.deviceList.values.filter { isPrinter(it) }
+    }
+
+    fun printerAccessError(context: Context): String? {
+        val manager = context.getSystemService(Context.USB_SERVICE) as UsbManager
+        val printers = manager.deviceList.values.filter { device ->
+            isPrinter(device) || KnownPrinters.findPrinter(device.vendorId, device.productId) != null
+        }
+        return when {
+            printers.isEmpty() -> context.getString(R.string.usb_printer_missing)
+            printers.none { manager.hasPermission(it) } -> context.getString(R.string.usb_permission_message)
+            else -> null
+        }
     }
 
     /**

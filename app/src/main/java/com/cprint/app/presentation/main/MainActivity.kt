@@ -39,7 +39,7 @@ import com.cprint.app.presentation.settings.PrintSettingsActivity
 import com.cprint.app.presentation.theme.CPrintTheme
 import com.cprint.app.service.UsbDeviceReceiver
 import com.cprint.app.update.AppUpdateViewModel
-import com.cprint.app.update.AppUpdatePanel
+import com.cprint.app.update.AppUpdateAction
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -185,19 +185,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
-                        MainScreen(
-                            viewModel = viewModel,
-                            onSelectDocument = { openDocumentLauncher.launch(arrayOf("*/*")) },
-                            onOpenSettings = { openPrintSettings() },
-                            onOpenQueue = { openPrintQueue() },
-                            onCheckForUpdate = { updater.checkForUpdate(userInitiated = true) },
-                            onDocumentSelected = { document ->
-                                openPrintPreview(document.uri)
-                            }
-                        )
-                        AppUpdatePanel(updater)
-                    }
+                    MainScreen(
+                        viewModel = viewModel,
+                        onSelectDocument = { openDocumentLauncher.launch(arrayOf("*/*")) },
+                        onOpenSettings = { openPrintSettings() },
+                        onOpenQueue = { openPrintQueue() },
+                        updateAction = { AppUpdateAction(updater) },
+                        onDocumentSelected = { document -> openPrintPreview(document.uri) }
+                    )
                 }
             }
         }

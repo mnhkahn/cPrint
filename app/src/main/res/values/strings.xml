@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">打印小帮手</string>
+    <string name="app_name">USB Print Assistant</string>
 
     <!-- General -->
     <string name="back">Back</string>
@@ -10,6 +10,11 @@
     <string name="retry">Retry</string>
     <string name="print">Print</string>
     <string name="settings">Settings</string>
+    <string name="check_app_update">Check for app updates</string>
+    <string name="checking_app_update">Checking for updates</string>
+    <string name="downloading_app_update">Downloading update</string>
+    <string name="app_update_ready">Update ready to install</string>
+    <string name="app_update_failed">App update failed</string>
     <string name="error">Error</string>
     <string name="error_occurred">An error occurred</string>
 
@@ -22,7 +27,7 @@
     <string name="tap_plus_to_add">Tap + to add a document</string>
     <string name="pages">pages</string>
     <string name="permissions_required">Permissions Required</string>
-    <string name="grant_permissions_message">Please grant the required permissions to use 打印小帮手</string>
+    <string name="grant_permissions_message">Please grant the required permissions to continue.</string>
 
     <!-- Print Preview -->
     <string name="print_preview">Print Preview</string>
@@ -82,7 +87,6 @@
     <string name="cancelled">Cancelled</string>
 
     <!-- Print Service -->
-    <string name="cprint_print_service_name">打印小帮手 USB 打印服务</string>
     <string name="print_service_channel_name">Print Service</string>
     <string name="print_service_channel_description">Notifications for print jobs</string>
     <string name="printing_document">Printing: %1$s</string>
@@ -92,6 +96,7 @@
 
     <!-- Error Dialogs -->
     <string name="usb_permission_title">USB Permission Required</string>
+    <string name="usb_printer_missing">No USB printer detected. Connect a printer and try again.</string>
     <string name="usb_permission_message">Please grant USB permission to connect to the printer.</string>
     <string name="printer_not_found_title">Printer Not Found</string>
     <string name="printer_not_found_message">No USB printer detected. Please check the connection.</string>

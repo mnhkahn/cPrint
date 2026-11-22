@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.outlined.RestorePage
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.Button
@@ -71,7 +70,7 @@ fun MainScreen(
     onSelectDocument: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenQueue: () -> Unit,
-    onCheckForUpdate: () -> Unit,
+    updateAction: @Composable () -> Unit,
     onDocumentSelected: (RecentDocument) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -81,7 +80,14 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
@@ -91,13 +97,6 @@ fun MainScreen(
                         Icon(
                             imageVector = Icons.Default.Bolt,
                             contentDescription = "驱动管线测试",
-                            tint = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                    IconButton(onClick = onCheckForUpdate) {
-                        Icon(
-                            imageVector = Icons.Default.SystemUpdate,
-                            contentDescription = "检查更新",
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -115,6 +114,7 @@ fun MainScreen(
                             tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
+                    updateAction()
                 }
             )
         },

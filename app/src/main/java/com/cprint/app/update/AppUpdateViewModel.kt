@@ -1,6 +1,7 @@
 package com.cprint.app.update
 
 import com.cprint.app.BuildConfig
+import com.cprint.app.R
 
 import android.app.Application
 import android.app.DownloadManager
@@ -50,7 +51,7 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
                         return@launch
                     }
                     val request = DownloadManager.Request(Uri.parse(update.downloadUrl))
-                        .setTitle("打印小帮手 ${update.versionName}")
+                        .setTitle("${context.getString(R.string.app_name)} ${update.versionName}")
                         .setDescription("正在下载更新，下载完成后可安装")
                         .setMimeType("application/vnd.android.package-archive")
                         .setAllowedOverMetered(false)

@@ -13,6 +13,7 @@ import android.os.ResultReceiver
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.repository.UsbPrintRepository
 import com.cprint.app.domain.usecase.print.CreatePrintJobUseCase
+import com.cprint.app.util.UsbUtils
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
@@ -136,6 +137,7 @@ class PrintJobService : Service() {
                     }
                 }
                 try {
+                    UsbUtils.printerAccessError(context)?.let { throw IllegalStateException(it) }
                     context.startForegroundService(Intent(context, PrintJobService::class.java).apply {
                         action = ACTION_START_PRINT
                         clipData = ClipData.newRawUri(documentName, Uri.parse(documentUri))

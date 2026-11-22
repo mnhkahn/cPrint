@@ -1,35 +1,45 @@
 package com.cprint.app.update
 
-
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cprint.app.R
 
 @Composable
-fun AppUpdatePanel(updater: AppUpdateViewModel = viewModel()) {
+fun AppUpdateAction(updater: AppUpdateViewModel) {
     val state by updater.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
@@ -61,15 +71,11 @@ fun AppUpdatePanel(updater: AppUpdateViewModel = viewModel()) {
             android.widget.Toast.makeText(context, state.message, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
-    if (state.stage == UpdateStage.IDLE || state.stage == UpdateStage.CHECKING) return
-    if (hidden) {
-        Box(Modifier.fillMaxSize().safeDrawingPadding().padding(12.dp), contentAlignment = Alignment.BottomEnd) {
-            Surface(tonalElevation = 6.dp, shadowElevation = 4.dp) {
-                TextButton(onClick = { hidden = false }) { Text(if (state.stage == UpdateStage.READY) "更新已下载，点击安装" else "查看更新状态") }
-            }
-        }
-        return
+    UpdateToolbarButton(state) {
+        if (state.stage == UpdateStage.IDLE) updater.checkForUpdate(userInitiated = true)
+        else hidden = false
     }
+    if (hidden || state.stage == UpdateStage.IDLE || state.stage == UpdateStage.CHECKING) return
     AlertDialog(
         onDismissRequest = { hidden = true },
         title = { Text(if (state.version.isBlank()) "应用更新" else "更新至 ${state.version}") },
@@ -91,4 +97,44 @@ fun AppUpdatePanel(updater: AppUpdateViewModel = viewModel()) {
         },
         dismissButton = { TextButton(onClick = { hidden = true }) { Text("稍后") } }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UpdateToolbarButton(state: UpdateState, onClick: () -> Unit) {
+    val label = stringResource(when (state.stage) {
+        UpdateStage.IDLE -> R.string.check_app_update
+        UpdateStage.CHECKING -> R.string.checking_app_update
+        UpdateStage.DOWNLOADING -> R.string.downloading_app_update
+        UpdateStage.READY -> R.string.app_update_ready
+        UpdateStage.FAILED -> R.string.app_update_failed
+    })
+    val busy = state.stage == UpdateStage.CHECKING || state.stage == UpdateStage.DOWNLOADING
+    val tint = MaterialTheme.colorScheme.onPrimary
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = rememberTooltipState()
+    ) {
+        IconButton(onClick = onClick, enabled = state.stage != UpdateStage.CHECKING) {
+            BadgedBox(badge = { if (state.stage == UpdateStage.READY) Badge() }) {
+                Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                    if (state.stage == UpdateStage.CHECKING) {
+                        CircularProgressIndicator(Modifier.size(28.dp), color = tint, strokeWidth = 2.dp)
+                    } else if (state.stage == UpdateStage.DOWNLOADING) {
+                        CircularProgressIndicator(
+                            progress = { state.progress }, modifier = Modifier.size(28.dp),
+                            color = tint, trackColor = tint.copy(alpha = 0.24f), strokeWidth = 2.dp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Outlined.Update,
+                        contentDescription = label,
+                        tint = tint,
+                        modifier = Modifier.size(if (busy) 16.dp else 24.dp)
+                    )
+                }
+            }
+        }
+    }
 }

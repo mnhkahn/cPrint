@@ -17,6 +17,7 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.util.Log
 import com.cprint.app.domain.model.PrintJob
 import com.cprint.app.domain.model.PrintSettings
 import com.cprint.app.domain.model.KnownPrinters
@@ -107,12 +108,14 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 Timber.d("USB connection verified: device=${currentDevice?.deviceName}, endpoint=$bulkOutEndpoint")
 
                 // Prepare print data based on document type and settings
-                android.util.Log.d("UsbPrintRepo", "Preparing print data for: ${job.documentName}, type: ${job.documentType}")
+                Log.i("UsbPrintRepo", "Preparing print data: type=${job.documentType}")
                 stage = "render"
                 val prepareStarted = SystemClock.elapsedRealtime()
+                val prepareUptime = SystemClock.uptimeMillis()
                 val printData = preparePrintData(job, settings)
                 val prepareMs = SystemClock.elapsedRealtime() - prepareStarted
-                android.util.Log.d("UsbPrintRepo", "Print data prepared: ${printData.size} bytes in ${prepareMs} ms")
+                val prepareSuspendedMs = (prepareMs - (SystemClock.uptimeMillis() - prepareUptime)).coerceAtLeast(0)
+                Log.i("UsbPrintRepo", "Print data prepared: ${printData.size} bytes in $prepareMs ms, suspended=$prepareSuspendedMs ms")
 
                 // Validate print data
                 if (printData.isEmpty()) {
@@ -136,9 +139,11 @@ class UsbPrintRepositoryImpl @Inject constructor(
 
                 stage = "transfer"
                 val transferStarted = SystemClock.elapsedRealtime()
+                val transferUptime = SystemClock.uptimeMillis()
                 val totalCopies = job.copies.coerceAtLeast(1)
                 val totalBytes = printData.size.toLong() * totalCopies
                 var bytesSent = 0L
+                Log.i("UsbPrintRepo", "USB transfer started: $totalBytes bytes, $totalCopies copies")
                 val printContext = currentCoroutineContext()
                 try {
                     UsbPrintTransfer(
@@ -154,8 +159,9 @@ class UsbPrintRepositoryImpl @Inject constructor(
                             if (isCancelled) throw CancellationException("打印已取消")
                         },
                         onWaiting = { waiting ->
-                            if (waiting && !_printWaiting.value) {
-                                Timber.w("USB waiting for printer: $bytesSent/$totalBytes bytes confirmed")
+                            if (waiting != _printWaiting.value) {
+                                val status = if (waiting) "waiting for write" else "write wait ended"
+                                Log.i("UsbPrintRepo", "USB $status: $bytesSent/$totalBytes bytes confirmed")
                             }
                             _printWaiting.value = waiting
                         },
@@ -167,11 +173,15 @@ class UsbPrintRepositoryImpl @Inject constructor(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
+                    val transferMs = SystemClock.elapsedRealtime() - transferStarted
+                    val suspendedMs = (transferMs - (SystemClock.uptimeMillis() - transferUptime)).coerceAtLeast(0)
+                    Log.w("UsbPrintRepo", "USB transfer failed: $bytesSent/$totalBytes bytes, elapsed=$transferMs ms, suspended=$suspendedMs ms")
                     throw IOException("${error.message}（已确认发送 $bytesSent / $totalBytes 字节）", error)
                 }
 
                 val transferMs = SystemClock.elapsedRealtime() - transferStarted
-                android.util.Log.d("UsbPrintRepo", "Print data sent complete: $bytesSent bytes, $totalCopies copies in ${transferMs} ms")
+                val transferSuspendedMs = (transferMs - (SystemClock.uptimeMillis() - transferUptime)).coerceAtLeast(0)
+                Log.i("UsbPrintRepo", "USB transfer complete: $bytesSent/$totalBytes bytes in $transferMs ms, suspended=$transferSuspendedMs ms")
 
                 _printProgress.value = 100
                 Timber.d("Print job sent successfully")
